@@ -149,30 +149,37 @@ export default function MyWorkloadPage() {
         </CardContent>
       </Card>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <Stat
-          label="本月工时"
-          value={loading ? "—" : `${data?.totalHours ?? 0}`}
-          suffix="h"
-          big
+      {/* Stats + 饱和度环 */}
+      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 mb-5">
+        <SaturationRing
+          saturation={data?.saturation ?? 0}
+          totalHours={data?.totalHours ?? 0}
+          loading={loading}
         />
-        <Stat
-          label="填报天数"
-          value={loading ? "—" : `${data?.daysLogged ?? 0}`}
-          suffix={`/${daysInMonth}`}
-        />
-        <Stat
-          label="工时/天"
-          value={
-            loading
-              ? "—"
-              : data && data.daysLogged > 0
-                ? (Math.round((data.totalHours / data.daysLogged) * 10) / 10).toString()
-                : "0"
-          }
-          suffix="h"
-        />
+        <div className="grid grid-cols-3 gap-3">
+          <Stat
+            label="本月工时"
+            value={loading ? "—" : `${data?.totalHours ?? 0}`}
+            suffix="h"
+            big
+          />
+          <Stat
+            label="填报天数"
+            value={loading ? "—" : `${data?.daysLogged ?? 0}`}
+            suffix={`/${data?.workDaysInMonth ?? daysInMonth}`}
+          />
+          <Stat
+            label="工时/天"
+            value={
+              loading
+                ? "—"
+                : data && data.daysLogged > 0
+                  ? (Math.round((data.totalHours / data.daysLogged) * 10) / 10).toString()
+                  : "0"
+            }
+            suffix="h"
+          />
+        </div>
       </div>
 
       {/* 按周走势 */}
@@ -356,6 +363,87 @@ export default function MyWorkloadPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function SaturationRing({
+  saturation,
+  totalHours,
+  loading,
+}: {
+  saturation: number;
+  totalHours: number;
+  loading: boolean;
+}) {
+  // 环颜色分级
+  const level =
+    saturation >= 110
+      ? { color: "#e17055", bg: "bg-destructive/10", label: "超载", labelClass: "text-destructive" }
+      : saturation >= 85
+        ? { color: "#00b894", bg: "bg-success/10", label: "饱满", labelClass: "text-success" }
+        : saturation >= 50
+          ? { color: "#6c5ce7", bg: "bg-primary/10", label: "正常", labelClass: "text-primary" }
+          : { color: "#fdcb6e", bg: "bg-warning/20", label: "偏低", labelClass: "text-warning-foreground" };
+
+  const size = 120;
+  const strokeWidth = 10;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.min(saturation, 100);
+  const dashOffset = circumference - (clamped / 100) * circumference;
+
+  return (
+    <Card className="shadow-soft rounded-2xl">
+      <CardContent className="py-4 px-4 flex items-center gap-4 md:flex-col md:items-center md:justify-center md:w-[180px]">
+        <div className="relative" style={{ width: size, height: size }}>
+          {loading ? (
+            <Skeleton className="rounded-full" style={{ width: size, height: size }} />
+          ) : (
+            <>
+              <svg width={size} height={size} className="-rotate-90">
+                <circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  stroke="currentColor"
+                  strokeWidth={strokeWidth}
+                  fill="none"
+                  className="text-muted"
+                />
+                <circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  stroke={level.color}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  fill="none"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={dashOffset}
+                  style={{ transition: "stroke-dashoffset 0.6s ease-out" }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-bold tracking-tight">{saturation}</span>
+                <span className="text-[10px] text-muted-foreground">%</span>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="md:text-center">
+          <div className="text-xs text-muted-foreground mb-0.5">饱和度</div>
+          <Badge
+            variant="secondary"
+            className={`rounded-full text-[11px] ${level.bg} ${level.labelClass}`}
+          >
+            {level.label}
+          </Badge>
+          <div className="text-[10px] text-muted-foreground mt-1">
+            {totalHours}h 已填报
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

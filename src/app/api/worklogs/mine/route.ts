@@ -17,9 +17,21 @@ export interface MineSummary {
   totalHours: number;
   daysLogged: number;
   logCount: number;
+  /** 每周标准工时（来自 User.weeklyCapacity） */
+  weeklyCapacity: number;
+  /** 本月工作日（按周五个工作日粗算） */
+  workDaysInMonth: number;
+  /** 饱和度：总工时 / 期望工时（standardHours）*100，>100 表示超载 */
+  saturation: number;
   byProject: { projectId: string; projectName: string; hours: number }[];
   byCategory: { category: string; hours: number }[];
-  byWeek: { weekStart: string; weekEnd: string; hours: number }[];
+  byWeek: {
+    weekStart: string;
+    weekEnd: string;
+    hours: number;
+    /** 该周的饱和度百分比 */
+    saturation: number;
+  }[];
   recentLogs: {
     id: string;
     date: string;
@@ -53,6 +65,12 @@ export async function GET(req: NextRequest) {
   }
 
   const userId = session.user.id;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { weeklyCapacity: true },
+  });
+  const weeklyCapacity = user ? Number(user.weeklyCapacity) : 40;
 
   const logs = await prisma.workLog.findMany({
     where: { userId, date: { gte: from, lte: to } },
@@ -115,8 +133,26 @@ export async function GET(req: NextRequest) {
       weekStart: ws.toISOString(),
       weekEnd: we.toISOString(),
       hours: Math.round(hours * 10) / 10,
+      saturation:
+        weeklyCapacity > 0
+          ? Math.round((hours / weeklyCapacity) * 100)
+          : 0,
     };
   });
+
+  // 本月期望工时：按月内周数 × weeklyCapacity（粗估；更精确的需要排除节假日）
+  const standardHours = weeks.length * weeklyCapacity;
+  const saturation =
+    standardHours > 0 ? Math.round((totalHours / standardHours) * 100) : 0;
+
+  // 本月工作日（周一到周五）
+  let workDaysInMonth = 0;
+  const cursor = new Date(from);
+  while (cursor <= to) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) workDaysInMonth++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
   // 本周是否填过（仅当 month 是当前月时有意义，不是也返回）
   const now = new Date();
@@ -144,6 +180,9 @@ export async function GET(req: NextRequest) {
     totalHours: Math.round(totalHours * 10) / 10,
     daysLogged: dayKeys.size,
     logCount: logs.length,
+    weeklyCapacity,
+    workDaysInMonth,
+    saturation,
     byProject,
     byCategory,
     byWeek,
