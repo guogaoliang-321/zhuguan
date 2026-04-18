@@ -88,6 +88,9 @@ const MOBILE_SHORT_LABEL: Record<string, string> = {
   "/admin/users": "用户",
 };
 
+// 这些路由只出现在「我的」Sheet 里，不进入底部标签栏
+const MOBILE_SHEET_ONLY = new Set(["/admin/weekly", "/admin/users"]);
+
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -106,8 +109,13 @@ export function Sidebar() {
     {}
   );
 
-  // 手机底部导航：根据角色展示全部可用入口 + 「我」
-  const mobileNavItems = filteredItems;
+  // 手机底部标签栏：除去只在「我的」里展示的项
+  const mobileNavItems = filteredItems.filter(
+    (item) => !MOBILE_SHEET_ONLY.has(item.href)
+  );
+  const mobileSheetItems = filteredItems.filter((item) =>
+    MOBILE_SHEET_ONLY.has(item.href)
+  );
   const mobileSlotCount = mobileNavItems.length + 1;
 
   const isHrefActive = (href: string) =>
@@ -230,7 +238,7 @@ export function Sidebar() {
             )}
           >
             <UserIcon className="w-5 h-5" />
-            <span className="whitespace-nowrap">我</span>
+            <span className="whitespace-nowrap">我的</span>
           </button>
         </div>
       </nav>
@@ -255,6 +263,35 @@ export function Sidebar() {
                     {session.user.role === "ADMIN" ? "管理员" : "成员"}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {mobileSheetItems.length > 0 && (
+            <div className="px-4 pb-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[1.5px] text-muted-foreground px-1 pt-2 pb-1.5">
+                管理
+              </div>
+              <div className="space-y-1">
+                {mobileSheetItems.map((item) => {
+                  const isActive = isHrefActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMeOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-accent text-accent-foreground font-semibold"
+                          : "text-foreground/80 hover:bg-accent"
+                      )}
+                    >
+                      <item.icon className="w-[18px] h-[18px]" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}
