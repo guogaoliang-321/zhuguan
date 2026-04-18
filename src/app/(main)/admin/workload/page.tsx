@@ -24,6 +24,7 @@ import type {
   PersonWorkLog,
   ProjectTimeline,
   TimelineMilestone,
+  PeopleBoardResponse,
 } from "@/app/api/worklogs/people-board/route";
 
 // ====== 项目色板 ======
@@ -38,21 +39,32 @@ const PROJECT_COLORS = [
   { bg: "bg-[#a29bfe]", bgLight: "bg-[#a29bfe]/15", text: "text-[#a29bfe]", hex: "#a29bfe" },
 ];
 
+const RANGE_PRESETS = [
+  { value: "this-week", label: "本周" },
+  { value: "this-month", label: "本月" },
+  { value: "this-quarter", label: "本季" },
+  { value: "last-30", label: "近 30 天" },
+] as const;
+
 export default function WorkloadPage() {
   const [people, setPeople] = useState<PersonBoardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [rangePreset, setRangePreset] = useState<string>("this-month");
+  const [rangeMeta, setRangeMeta] = useState<{ from: string; to: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/worklogs/people-board")
+    setLoading(true);
+    fetch(`/api/worklogs/people-board?range=${rangePreset}`)
       .then((r) => r.json())
-      .then((data: PersonBoardItem[]) => {
-        setPeople(data);
-        setExpandedIds(new Set(data.map((p) => p.userId)));
+      .then((data: PeopleBoardResponse) => {
+        setPeople(data.items);
+        setRangeMeta({ from: data.from, to: data.to });
+        setExpandedIds(new Set(data.items.map((p) => p.userId)));
         setLoading(false);
       });
-  }, []);
+  }, [rangePreset]);
 
   // 全局项目色映射
   const projectColorMap = useMemo(() => {
@@ -105,33 +117,61 @@ export default function WorkloadPage() {
     );
   }
 
+  const totalRangeHours = people.reduce((s, p) => s + p.rangeHours, 0);
+  const avgSaturation =
+    people.length > 0
+      ? Math.round(people.reduce((s, p) => s + p.rangeSaturation, 0) / people.length)
+      : 0;
+
+  const rangeLabelText = rangeMeta
+    ? `${format(new Date(rangeMeta.from), "M/d")} – ${format(new Date(rangeMeta.to), "M/d")}`
+    : "";
+
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">人员工作看板</h1>
-        <p className="text-muted-foreground mt-1">
-          跨项目追踪每个人的时间进度、工作内容和待办节点
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">人员工作看板</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            跨项目追踪每个人的时间进度、工作内容和待办节点
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5 bg-card rounded-xl p-1 shadow-soft">
+          {RANGE_PRESETS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setRangePreset(p.value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                rangePreset === p.value
+                  ? "gradient-primary text-white shadow-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 统计 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <StatCard emoji="👥" label="在岗人员" value={people.length} />
         <StatCard
-          emoji="📁"
-          label="活跃项目"
-          value={new Set(people.flatMap((p) => p.projectTimelines.map((pt) => pt.projectId))).size}
+          emoji="📊"
+          label={`总工时 ${rangeLabelText ? `· ${rangeLabelText}` : ""}`}
+          value={`${Math.round(totalRangeHours)}h`}
+        />
+        <StatCard
+          emoji="🔥"
+          label="平均饱和度"
+          value={`${avgSaturation}%`}
+          color={avgSaturation >= 110 ? "text-destructive" : avgSaturation >= 85 ? "text-success" : ""}
         />
         <StatCard
           emoji="🚨"
           label="逾期节点"
           value={totalOverdue}
           color={totalOverdue > 0 ? "text-destructive" : ""}
-        />
-        <StatCard
-          emoji="📊"
-          label="本周总工时"
-          value={`${people.reduce((s, p) => s + p.thisWeekHours, 0)}h`}
         />
       </div>
 
