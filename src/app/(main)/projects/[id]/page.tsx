@@ -226,6 +226,9 @@ export default function ProjectDetailPage({
           <TabsTrigger value="notes" className="rounded-lg">
             项目备注 ({project.notes.length})
           </TabsTrigger>
+          <TabsTrigger value="workload" className="rounded-lg">
+            工时贡献
+          </TabsTrigger>
           <TabsTrigger value="info" className="rounded-lg">
             基本信息
           </TabsTrigger>
@@ -258,6 +261,10 @@ export default function ProjectDetailPage({
             notes={project.notes}
             onRefresh={fetchProject}
           />
+        </TabsContent>
+
+        <TabsContent value="workload">
+          <WorkloadTab projectId={id} />
         </TabsContent>
 
         <TabsContent value="info">
@@ -777,6 +784,155 @@ function NotesTab({
           暂无备注
         </p>
       )}
+    </div>
+  );
+}
+
+// ===== 工时贡献 Tab =====
+interface ProjectWorkloadMember {
+  userId: string;
+  name: string;
+  position: string | null;
+  role: string;
+  isLead: boolean;
+  totalHours: number;
+  logCount: number;
+  byCategory: { category: string; hours: number }[];
+}
+interface ProjectWorkloadResp {
+  totalHours: number;
+  logCount: number;
+  members: ProjectWorkloadMember[];
+}
+
+function WorkloadTab({ projectId }: { projectId: string }) {
+  const [data, setData] = useState<ProjectWorkloadResp | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/workload`)
+      .then((r) => r.json())
+      .then((d: ProjectWorkloadResp) => {
+        setData(d);
+        setLoading(false);
+      });
+  }, [projectId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-16 rounded-2xl" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!data || data.members.length === 0) {
+    return (
+      <Card className="shadow-soft rounded-2xl">
+        <CardContent className="py-16 text-center text-muted-foreground">
+          本项目还没有工时记录
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const maxHours = Math.max(1, ...data.members.map((m) => m.totalHours));
+
+  return (
+    <div>
+      <Card className="shadow-soft rounded-2xl mb-4">
+        <CardContent className="py-4 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="text-xs text-muted-foreground">累计总工时</div>
+            <div className="text-2xl font-bold tracking-tight">
+              {data.totalHours}
+              <span className="text-sm font-normal text-muted-foreground ml-1">h</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">累计记录数</div>
+            <div className="text-2xl font-bold tracking-tight">
+              {data.logCount}
+              <span className="text-sm font-normal text-muted-foreground ml-1">条</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">参与成员</div>
+            <div className="text-2xl font-bold tracking-tight">
+              {data.members.length}
+              <span className="text-sm font-normal text-muted-foreground ml-1">人</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-3">
+        {data.members.map((m) => {
+          const pct = (m.totalHours / maxHours) * 100;
+          const share =
+            data.totalHours > 0
+              ? Math.round((m.totalHours / data.totalHours) * 100)
+              : 0;
+          return (
+            <Card key={m.userId} className="shadow-soft rounded-2xl">
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full gradient-primary text-white flex items-center justify-center text-xs font-semibold">
+                      {m.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium">
+                        {m.name}
+                        {m.isLead && (
+                          <Badge
+                            variant="secondary"
+                            className="rounded-full text-[10px] ml-2 px-1.5 py-0 bg-primary/10 text-primary"
+                          >
+                            负责人
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {m.role}
+                        {m.position ? ` · ${m.position}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold">{m.totalHours}h</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {share}% · {m.logCount} 条
+                    </div>
+                  </div>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
+                  <div
+                    className="h-full gradient-primary rounded-full transition-all"
+                    style={{ width: `${Math.max(pct, 4)}%` }}
+                  />
+                </div>
+                {m.byCategory.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {m.byCategory.slice(0, 6).map((c) => (
+                      <Badge
+                        key={c.category}
+                        variant="secondary"
+                        className="rounded-full text-[10px] px-1.5 py-0"
+                      >
+                        {c.category} {c.hours}h
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
