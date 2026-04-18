@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession, unauthorized } from "@/lib/api-utils";
+import { projectVisibilityFilter } from "@/lib/permissions";
 
 export type TrafficLight = "green" | "yellow" | "red" | "gray";
 
@@ -58,8 +59,9 @@ export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
 
+  const visibility = projectVisibilityFilter(session.user);
   const projects = await prisma.project.findMany({
-    where: { status: { not: "ARCHIVED" } },
+    where: { AND: [visibility, { status: { not: "ARCHIVED" } }] },
     include: {
       lead: { select: { id: true, name: true } },
       milestones: {
@@ -132,8 +134,10 @@ export async function GET() {
   };
 
   // 最新项目动态：备注 + 工作记录 + 已完成里程碑，混合按时间倒序
+  // 按 projectVisibilityFilter 过滤，普通员工只看自己参与项目的动态
   const [recentNotes, recentLogs, recentMilestones] = await Promise.all([
     prisma.projectNote.findMany({
+      where: { project: visibility },
       take: 6,
       orderBy: { createdAt: "desc" },
       select: {
@@ -145,6 +149,7 @@ export async function GET() {
       },
     }),
     prisma.workLog.findMany({
+      where: { project: visibility },
       take: 6,
       orderBy: { createdAt: "desc" },
       select: {
@@ -158,7 +163,7 @@ export async function GET() {
       },
     }),
     prisma.milestone.findMany({
-      where: { isCompleted: true },
+      where: { AND: [{ isCompleted: true }, { project: visibility }] },
       take: 4,
       orderBy: { completedAt: "desc" },
       select: {

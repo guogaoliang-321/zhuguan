@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { canCreateProject } from "@/lib/permissions";
 import {
   Table,
   TableBody,
@@ -41,6 +43,13 @@ interface Project {
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const mayCreate = session?.user
+    ? canCreateProject({
+        id: session.user.id,
+        role: session.user.role,
+      })
+    : false;
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -94,12 +103,14 @@ export default function ProjectsPage() {
             共 {projects.length} 个项目
           </p>
         </div>
-        <Link href="/projects/new">
-          <Button className="gradient-primary text-white shadow-primary rounded-xl">
-            <Plus className="w-4 h-4 mr-2" />
-            新建项目
-          </Button>
-        </Link>
+        {mayCreate && (
+          <Link href="/projects/new">
+            <Button className="gradient-primary text-white shadow-primary rounded-xl">
+              <Plus className="w-4 h-4 mr-2" />
+              新建项目
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* 筛选栏 */}

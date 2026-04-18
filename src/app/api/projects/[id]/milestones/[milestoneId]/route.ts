@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, notFound, badRequest } from "@/lib/api-utils";
+import {
+  getSession,
+  unauthorized,
+  notFound,
+  badRequest,
+  forbidden,
+} from "@/lib/api-utils";
+import {
+  canManageMilestones,
+  canCompleteMilestone,
+} from "@/lib/permissions";
 import { z } from "zod";
 
 const updateMilestoneSchema = z.object({
@@ -19,7 +29,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   const session = await getSession();
   if (!session) return unauthorized();
 
-  const { milestoneId } = await params;
+  const { id, milestoneId } = await params;
   const body = await request.json();
   const parsed = updateMilestoneSchema.safeParse(body);
 
@@ -27,10 +37,39 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return badRequest(parsed.error.issues[0].message);
   }
 
-  const existing = await prisma.milestone.findUnique({ where: { id: milestoneId } });
+  const existing = await prisma.milestone.findUnique({
+    where: { id: milestoneId },
+  });
   if (!existing) return notFound("节点不存在");
 
+  const project = await prisma.project.findUnique({
+    where: { id },
+    select: { leadId: true },
+  });
+  if (!project) return notFound("项目不存在");
+
   const data = parsed.data;
+
+  // 仅勾选完成状态的请求：assignee 也可以操作自己的节点
+  const onlyToggleCompletion =
+    data.isCompleted !== undefined &&
+    data.name === undefined &&
+    data.phase === undefined &&
+    data.description === undefined &&
+    data.dueDate === undefined &&
+    data.assigneeId === undefined &&
+    data.sortOrder === undefined;
+
+  const allowed = onlyToggleCompletion
+    ? canCompleteMilestone(
+        session.user,
+        { assigneeId: existing.assigneeId },
+        project
+      )
+    : canManageMilestones(session.user, project);
+
+  if (!allowed) return forbidden();
+
   const updateData: Record<string, unknown> = { ...data };
 
   if (data.dueDate) {
@@ -55,10 +94,19 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const session = await getSession();
   if (!session) return unauthorized();
 
-  const { milestoneId } = await params;
+  const { id, milestoneId } = await params;
 
-  const existing = await prisma.milestone.findUnique({ where: { id: milestoneId } });
+  const existing = await prisma.milestone.findUnique({
+    where: { id: milestoneId },
+  });
   if (!existing) return notFound("节点不存在");
+
+  const project = await prisma.project.findUnique({
+    where: { id },
+    select: { leadId: true },
+  });
+  if (!project) return notFound("项目不存在");
+  if (!canManageMilestones(session.user, project)) return forbidden();
 
   await prisma.milestone.delete({ where: { id: milestoneId } });
 

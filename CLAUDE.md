@@ -1,5 +1,7 @@
 # 筑管 ZhuGuan - 项目上下文
 
+> **📋 开发前必读：[`MEMORY.md`](./MEMORY.md)** — 权限规则表、8 阶段执行计划、进度日志。每次开工查看阶段状态。
+
 ## 线上部署
 
 | 项目 | 值 |
@@ -46,6 +48,19 @@ npm run db:migrate   # 运行迁移
 - **NextAuth v5** 拆分为 `auth.config.ts`（轻量，供 middleware）+ `auth.ts`（完整，含 Prisma）
 - **Seed API**：`POST /api/seed?secret=NEXTAUTH_SECRET` 用于线上初始化数据
 - **middleware.ts** 有 Next.js 16 deprecation 警告（推荐 proxy.ts），功能不受影响
+
+## 权限与工作量架构
+
+- **三角色**：`ADMIN` / `PROJECT_LEAD` / `MEMBER`（schema 已定义，阶段 1 开始落地）
+- **权限判定**：统一走 `src/lib/permissions.ts`，不要在 API 里散写 `role !== "ADMIN"`
+- **项目级关系**：`isLead(project)` + `isMember(project)` 派生判断，不是独立字段
+- **详细规则矩阵**：见 [`MEMORY.md`](./MEMORY.md)「权限模型」章节
+- **当前工作量体系短板**（阶段 2-8 逐项解决）：
+  - 普通员工没有「我的工作量」视图
+  - 时间尺度只有"上周+本周"
+  - `WorkLog.hours` schema 可选但 API 必填（不一致）
+  - `category` 可选导致无法按类别分析
+  - 缺少 `User.weeklyCapacity` 基线，无法计算饱和度
 
 ## 工作类别（30 种）
 

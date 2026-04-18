@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession, unauthorized } from "@/lib/api-utils";
+import { projectVisibilityFilter } from "@/lib/permissions";
 
 export interface ActivityItem {
   id: string;
@@ -22,9 +23,11 @@ export async function GET(req: NextRequest) {
   const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 200) : 60;
 
   const perKind = Math.max(Math.ceil(limit / 2), 20);
+  const visibility = projectVisibilityFilter(session.user);
 
   const [notes, logs, milestones] = await Promise.all([
     prisma.projectNote.findMany({
+      where: { project: visibility },
       take: perKind,
       orderBy: { createdAt: "desc" },
       select: {
@@ -36,6 +39,7 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.workLog.findMany({
+      where: { project: visibility },
       take: perKind,
       orderBy: { createdAt: "desc" },
       select: {
@@ -49,7 +53,7 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.milestone.findMany({
-      where: { isCompleted: true },
+      where: { AND: [{ isCompleted: true }, { project: visibility }] },
       take: perKind,
       orderBy: { completedAt: "desc" },
       select: {

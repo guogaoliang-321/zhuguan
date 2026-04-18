@@ -39,6 +39,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { PHASE_LABELS, STATUS_LABELS, PHASE_OPTIONS } from "@/lib/constants";
+import { canEditProject } from "@/lib/permissions";
 
 interface Milestone {
   id: string;
@@ -117,7 +118,12 @@ export default function ProjectDetailPage({
   }, [fetchProject]);
 
   const canEdit =
-    session?.user?.role === "ADMIN" || session?.user?.id === project?.leadId;
+    session?.user && project
+      ? canEditProject(
+          { id: session.user.id, role: session.user.role },
+          { leadId: project.leadId }
+        )
+      : false;
 
   if (!project) {
     return (

@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, notFound, badRequest } from "@/lib/api-utils";
+import {
+  getSession,
+  unauthorized,
+  notFound,
+  badRequest,
+  forbidden,
+} from "@/lib/api-utils";
+import {
+  canViewProject,
+  canEditProject,
+  canDeleteProject,
+} from "@/lib/permissions";
 import { z } from "zod";
 
 const updateProjectSchema = z.object({
@@ -56,6 +67,8 @@ export async function GET(
 
   if (!project) return notFound("项目不存在");
 
+  if (!canViewProject(session.user, project)) return forbidden();
+
   return NextResponse.json(project);
 }
 
@@ -77,10 +90,7 @@ export async function PUT(
   const existing = await prisma.project.findUnique({ where: { id } });
   if (!existing) return notFound("项目不存在");
 
-  // 非 ADMIN 只能编辑自己负责的项目
-  if (session.user.role !== "ADMIN" && existing.leadId !== session.user.id) {
-    return NextResponse.json({ error: "只能编辑自己负责的项目" }, { status: 403 });
-  }
+  if (!canEditProject(session.user, existing)) return forbidden();
 
   const data = parsed.data;
   const updateData: Record<string, unknown> = { ...data };
@@ -110,9 +120,7 @@ export async function DELETE(
   const session = await getSession();
   if (!session) return unauthorized();
 
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "仅管理员可删除项目" }, { status: 403 });
-  }
+  if (!canDeleteProject(session.user)) return forbidden();
 
   const { id } = await params;
 

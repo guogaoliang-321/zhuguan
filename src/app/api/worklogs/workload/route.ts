@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized } from "@/lib/api-utils";
+import { getSession, unauthorized, forbidden } from "@/lib/api-utils";
+import { canViewAllWorkload } from "@/lib/permissions";
 import { startOfWeek, endOfWeek } from "date-fns";
 
 export type WorkloadTag = "idle" | "normal" | "busy";
@@ -25,9 +26,8 @@ export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
 
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "仅管理员可查看" }, { status: 403 });
-  }
+  // TODO 阶段4: PROJECT_LEAD 可看自己负责项目的成员；当前仅 ADMIN
+  if (!canViewAllWorkload(session.user)) return forbidden();
 
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, badRequest } from "@/lib/api-utils";
+import {
+  getSession,
+  unauthorized,
+  badRequest,
+  notFound,
+  forbidden,
+} from "@/lib/api-utils";
+import { canAddNote } from "@/lib/permissions";
 import { z } from "zod";
 
 const createNoteSchema = z.object({
@@ -15,6 +22,17 @@ export async function POST(
   if (!session) return unauthorized();
 
   const { id } = await params;
+
+  const project = await prisma.project.findUnique({
+    where: { id },
+    select: {
+      leadId: true,
+      members: { select: { userId: true } },
+    },
+  });
+  if (!project) return notFound("项目不存在");
+  if (!canAddNote(session.user, project)) return forbidden();
+
   const body = await request.json();
   const parsed = createNoteSchema.safeParse(body);
 

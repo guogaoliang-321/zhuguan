@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, badRequest } from "@/lib/api-utils";
+import { getSession, unauthorized, badRequest, forbidden } from "@/lib/api-utils";
+import {
+  canCreateProject,
+  projectVisibilityFilter,
+} from "@/lib/permissions";
 import { z } from "zod";
 
 const createProjectSchema = z.object({
@@ -30,17 +34,20 @@ export async function GET(request: NextRequest) {
   const leadId = searchParams.get("leadId");
   const search = searchParams.get("search");
 
-  const where: Record<string, unknown> = {};
-  if (phase) where.phase = phase;
-  if (status) where.status = status;
-  if (leadId) where.leadId = leadId;
+  const visibility = projectVisibilityFilter(session.user);
+  const filters: Record<string, unknown> = {};
+  if (phase) filters.phase = phase;
+  if (status) filters.status = status;
+  if (leadId) filters.leadId = leadId;
   if (search) {
-    where.OR = [
+    filters.OR = [
       { name: { contains: search, mode: "insensitive" } },
       { clientName: { contains: search, mode: "insensitive" } },
       { contractNo: { contains: search, mode: "insensitive" } },
     ];
   }
+
+  const where = { AND: [visibility, filters] };
 
   const projects = await prisma.project.findMany({
     where,
@@ -57,6 +64,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const session = await getSession();
   if (!session) return unauthorized();
+  if (!canCreateProject(session.user)) return forbidden();
 
   const body = await request.json();
   const parsed = createProjectSchema.safeParse(body);

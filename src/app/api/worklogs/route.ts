@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, badRequest } from "@/lib/api-utils";
+import {
+  getSession,
+  unauthorized,
+  badRequest,
+  notFound,
+  forbidden,
+} from "@/lib/api-utils";
+import {
+  workLogVisibilityFilter,
+  canCreateWorkLogFor,
+  isAdmin,
+  isProjectLead,
+} from "@/lib/permissions";
 import { z } from "zod";
 
 const createWorklogSchema = z.object({
@@ -9,6 +21,8 @@ const createWorklogSchema = z.object({
   hours: z.number().min(0.5, "工时至少0.5小时").max(24),
   content: z.string().min(1, "请填写工作内容"),
   category: z.string().optional().nullable(),
+  // ADMIN 代人填报时使用，否则忽略
+  userId: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -16,15 +30,28 @@ export async function GET(request: NextRequest) {
   if (!session) return unauthorized();
 
   const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId") || session.user.id;
+  const userIdParam = searchParams.get("userId");
   const projectId = searchParams.get("projectId");
 
-  // 非 ADMIN 只能查看自己的记录
-  const targetUserId =
-    session.user.role === "ADMIN" ? userId : session.user.id;
+  // 权限过滤：ADMIN 全部；PROJECT_LEAD 本人+自己负责项目；MEMBER 仅本人
+  const visibility = workLogVisibilityFilter(session.user);
+  const extra: Record<string, unknown> = {};
 
-  const where: Record<string, unknown> = { userId: targetUserId };
-  if (projectId) where.projectId = projectId;
+  if (userIdParam) {
+    // 如果显式请求特定用户，也要落到 visibility 之内
+    if (
+      isAdmin(session.user) ||
+      userIdParam === session.user.id ||
+      isProjectLead(session.user)
+    ) {
+      extra.userId = userIdParam;
+    } else {
+      return forbidden();
+    }
+  }
+  if (projectId) extra.projectId = projectId;
+
+  const where = { AND: [visibility, extra] };
 
   const logs = await prisma.workLog.findMany({
     where,
@@ -51,10 +78,24 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data;
+  const targetUserId = data.userId ?? session.user.id;
+
+  const project = await prisma.project.findUnique({
+    where: { id: data.projectId },
+    select: {
+      leadId: true,
+      members: { select: { userId: true } },
+    },
+  });
+  if (!project) return notFound("项目不存在");
+
+  if (!canCreateWorkLogFor(session.user, targetUserId, project)) {
+    return forbidden();
+  }
 
   const log = await prisma.workLog.create({
     data: {
-      userId: session.user.id,
+      userId: targetUserId,
       projectId: data.projectId,
       date: new Date(data.date),
       hours: data.hours,
