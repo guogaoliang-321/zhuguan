@@ -78,8 +78,15 @@ const sectionLabels: Record<string, string> = {
   admin: "ADMIN",
 };
 
-// 手机底部主导航固定展示这些路由
-const MOBILE_MAIN_HREFS = ["/dashboard", "/projects", "/worklog"];
+// 手机底部导航的紧凑标签（覆盖默认 label）
+const MOBILE_SHORT_LABEL: Record<string, string> = {
+  "/dashboard": "看板",
+  "/projects": "项目",
+  "/worklog": "记录",
+  "/admin/workload": "人员",
+  "/admin/weekly": "周报",
+  "/admin/users": "用户",
+};
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -99,12 +106,9 @@ export function Sidebar() {
     {}
   );
 
-  const mobileMainItems = navItems.filter((item) =>
-    MOBILE_MAIN_HREFS.includes(item.href)
-  );
-  const mobileSheetItems = filteredItems.filter(
-    (item) => !MOBILE_MAIN_HREFS.includes(item.href)
-  );
+  // 手机底部导航：根据角色展示全部可用入口 + 「我」
+  const mobileNavItems = filteredItems;
+  const mobileSlotCount = mobileNavItems.length + 1;
 
   const isHrefActive = (href: string) =>
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
@@ -188,29 +192,30 @@ export function Sidebar() {
       {/* 移动端底部导航 */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur-lg border-t border-border">
         <div
-          className="grid grid-cols-4 px-1 pt-1.5"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 6px)" }}
+          className="grid pt-1.5"
+          style={{
+            gridTemplateColumns: `repeat(${mobileSlotCount}, minmax(0, 1fr))`,
+            paddingBottom: "calc(env(safe-area-inset-bottom) + 6px)",
+          }}
         >
-          {mobileMainItems.map((item) => {
+          {mobileNavItems.map((item) => {
             const isActive = isHrefActive(item.href);
+            const label = MOBILE_SHORT_LABEL[item.href] ?? item.label;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors",
+                  "flex flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors leading-none",
                   isActive
                     ? "text-primary"
                     : "text-muted-foreground active:text-foreground"
                 )}
               >
                 <item.icon
-                  className={cn(
-                    "w-[22px] h-[22px]",
-                    isActive && "text-primary"
-                  )}
+                  className={cn("w-5 h-5", isActive && "text-primary")}
                 />
-                {item.label}
+                <span className="whitespace-nowrap">{label}</span>
               </Link>
             );
           })}
@@ -218,14 +223,14 @@ export function Sidebar() {
             type="button"
             onClick={() => setMeOpen(true)}
             className={cn(
-              "flex flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors",
+              "flex flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors leading-none",
               meOpen
                 ? "text-primary"
                 : "text-muted-foreground active:text-foreground"
             )}
           >
-            <UserIcon className="w-[22px] h-[22px]" />
-            我
+            <UserIcon className="w-5 h-5" />
+            <span className="whitespace-nowrap">我</span>
           </button>
         </div>
       </nav>
@@ -250,35 +255,6 @@ export function Sidebar() {
                     {session.user.role === "ADMIN" ? "管理员" : "成员"}
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {mobileSheetItems.length > 0 && (
-            <div className="px-4 pb-2">
-              <div className="text-[11px] font-semibold uppercase tracking-[1.5px] text-muted-foreground px-1 pt-2 pb-1.5">
-                管理
-              </div>
-              <div className="space-y-1">
-                {mobileSheetItems.map((item) => {
-                  const isActive = isHrefActive(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMeOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-accent text-accent-foreground font-semibold"
-                          : "text-foreground/80 hover:bg-accent"
-                      )}
-                    >
-                      <item.icon className="w-[18px] h-[18px]" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
               </div>
             </div>
           )}
