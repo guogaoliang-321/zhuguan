@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PHASE_LABELS, PHASE_OPTIONS } from "@/lib/constants";
-import type { DashboardProject, DashboardStats, TrafficLight } from "@/app/api/dashboard/route";
+import type { DashboardProject, DashboardStats, DashboardMe, TrafficLight } from "@/app/api/dashboard/route";
 
 interface ActivityItem {
   id: string;
@@ -69,6 +69,7 @@ export default function DashboardPage() {
   const projectListRef = useRef<HTMLDivElement>(null);
   const [projects, setProjects] = useState<DashboardProject[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [me, setMe] = useState<DashboardMe | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>("card");
@@ -83,6 +84,7 @@ export default function DashboardPage() {
       .then((data) => {
         setProjects(data.projects);
         setStats(data.stats);
+        setMe(data.me ?? null);
         setActivities(data.recentActivities ?? []);
         setLoading(false);
       });
@@ -156,6 +158,40 @@ export default function DashboardPage() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">进度看板</h1>
         <p className="text-muted-foreground mt-1 text-sm sm:text-base">实时掌握全所项目进展</p>
       </div>
+
+      {/* 本周工时提醒 */}
+      {me && !me.thisWeekFilled && (
+        <Card className="shadow-soft rounded-2xl mb-4 sm:mb-6 border-warning/40 bg-warning/5">
+          <CardContent className="py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-warning/20 flex items-center justify-center shrink-0">
+                <ClipboardList className="w-4 h-4 text-warning-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">本周还没写工作记录</p>
+                <p className="text-xs text-muted-foreground">
+                  花 30 秒把这周工作填一下
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/worklog/new"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/15 px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+            >
+              去补录
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+      {me && me.thisWeekFilled && me.thisWeekHours > 0 && (
+        <div className="text-xs text-muted-foreground mb-4 sm:mb-6 flex items-center gap-2">
+          <span>本周你已填报</span>
+          <span className="font-semibold text-foreground">{me.thisWeekHours}h</span>
+          <Link href="/my/workload" className="text-primary hover:underline">
+            查看我的工作量 →
+          </Link>
+        </div>
+      )}
 
       {/* Stats - 手机端紧凑四列（可点击筛选） */}
       <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-8">

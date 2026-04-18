@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession, unauthorized } from "@/lib/api-utils";
 import { projectVisibilityFilter } from "@/lib/permissions";
+import { startOfWeek, endOfWeek } from "date-fns";
 
 export type TrafficLight = "green" | "yellow" | "red" | "gray";
 
@@ -33,6 +34,11 @@ export interface DashboardStats {
   yellow: number;
   red: number;
   dueThisWeek: number;
+}
+
+export interface DashboardMe {
+  thisWeekHours: number;
+  thisWeekFilled: boolean;
 }
 
 function calculateLight(
@@ -220,9 +226,30 @@ export async function GET() {
 
   activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
+  // 当前用户本周工时
+  const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const thisWeekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const myWeekLogs = await prisma.workLog.findMany({
+    where: {
+      userId: session.user.id,
+      date: { gte: thisWeekStart, lte: thisWeekEnd },
+    },
+    select: { hours: true },
+  });
+  const thisWeekHours = myWeekLogs.reduce(
+    (sum, l) => sum + (l.hours ? Number(l.hours) : 0),
+    0
+  );
+
+  const me: DashboardMe = {
+    thisWeekHours: Math.round(thisWeekHours * 10) / 10,
+    thisWeekFilled: myWeekLogs.length > 0,
+  };
+
   return NextResponse.json({
     projects: dashboardProjects,
     stats,
+    me,
     recentActivities: activities.slice(0, 8),
   });
 }

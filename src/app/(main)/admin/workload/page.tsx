@@ -332,6 +332,14 @@ function PersonCard({
                 {person.overdueCount} 个逾期
               </Badge>
             )}
+            {person.thisWeekLogs.length === 0 && (
+              <Badge
+                variant="secondary"
+                className="rounded-full text-[10px] bg-warning/20 text-warning-foreground"
+              >
+                本周未填
+              </Badge>
+            )}
           </div>
         </div>
 

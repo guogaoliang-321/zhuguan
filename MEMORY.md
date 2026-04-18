@@ -89,7 +89,7 @@
 | 5 | **我的工作量升级** | 饱和度环（基于 `weeklyCapacity`）+ 历史月份切换 + 按项目展开 | 阶段 3 | 0.25 天 | 🟢 | ✅ 已完成 |
 | 6 | **团队横向对比视图** | 管理员视图：全员本月工时柱状图 / 饱和度散点 | 阶段 3+4 | 0.5 天 | 🟢 可选 | ✅ 已完成 |
 | 7 | **项目 × 人员矩阵** | 项目详情页新增「成员工时贡献」标签 | 阶段 4 | 0.5 天 | 🟢 可选 | ✅ 已完成 |
-| 8 | **工作记录补录提醒** | 定时任务识别「本周未填」「连续低报」；「我的」显示红点 | 阶段 3 | 0.75 天 | 🟢 可选 | ⏸ 待启动 |
+| 8 | **工作记录补录提醒** | 定时任务识别「本周未填」「连续低报」；「我的」显示红点 | 阶段 3 | 0.75 天 | 🟢 可选 | ✅ 已完成（简化版） |
 
 **合计**：核心（1–4）≈ 2.5 天；全部 ≈ 4.5 天
 
@@ -190,6 +190,18 @@
   - `WorkLog.hours` / `category` 改为必填，历史 NULL 回填 0 / "其他"
   - API Zod: `category` 改为 `.min(1)`；表单加 `*` 标记 + 禁用未选择类别时提交
   - Zeabur 部署会自动执行 `prisma migrate deploy`
+
+### 2026-04-19
+- ✅ **阶段 5 完成**：API 返回 `weeklyCapacity/saturation/workDaysInMonth`；页面加 `SaturationRing` 环形进度
+- ✅ **阶段 4 完成**：`people-board` API 支持 `?range=this-week|this-month|this-quarter|last-30` 或自定义 `?from&to`；响应包 `{from, to, items}`，每人含 `rangeHours/rangeSaturation/byCategory`；UI 顶部加预设切换
+- ✅ **阶段 6 完成**：`TeamComparison` 组件，按时间范围排序展示工时条 + 饱和度标签
+- ✅ **阶段 7 完成**：新 API `/api/projects/[id]/workload` + 项目详情「工时贡献」Tab（顶部 KPI + 成员排行条 + 类别徽章）
+- ✅ **阶段 8 完成**（简化版）：放弃 cron，改用实时查询
+  - Dashboard API 返回 `me: {thisWeekHours, thisWeekFilled}`
+  - Dashboard 本周未填时显示黄色补录卡片；已填时显示灰色统计行
+  - admin/workload 每个人卡片头显示「本周未填」警告徽章
+
+🎉 **8 阶段路线图全部完成**
 
 ---
 
