@@ -175,6 +175,9 @@ export default function WorkloadPage() {
         />
       </div>
 
+      {/* 团队横向对比 */}
+      <TeamComparison people={people} />
+
       {/* 搜索 */}
       <div className="relative mb-6 max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -199,6 +202,71 @@ export default function WorkloadPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+// ====== 团队横向对比 ======
+function TeamComparison({ people }: { people: PersonBoardItem[] }) {
+  const sorted = [...people].sort((a, b) => b.rangeHours - a.rangeHours);
+  const maxHours = Math.max(1, ...sorted.map((p) => p.rangeHours));
+
+  if (sorted.length === 0) return null;
+
+  return (
+    <Card className="shadow-soft rounded-2xl mb-6">
+      <CardContent className="py-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">团队工时对比</h3>
+          <span className="text-[11px] text-muted-foreground">
+            按时间范围排序
+          </span>
+        </div>
+        <div className="space-y-2.5">
+          {sorted.map((p) => {
+            const pct = (p.rangeHours / maxHours) * 100;
+            const saturationColor =
+              p.rangeSaturation >= 110
+                ? "bg-destructive"
+                : p.rangeSaturation >= 85
+                  ? "bg-success"
+                  : p.rangeSaturation >= 50
+                    ? "gradient-primary"
+                    : "bg-warning";
+            const satLabel =
+              p.rangeSaturation >= 110
+                ? { text: "超载", className: "text-destructive" }
+                : p.rangeSaturation >= 85
+                  ? { text: "饱满", className: "text-success" }
+                  : p.rangeSaturation >= 50
+                    ? { text: "正常", className: "text-primary" }
+                    : { text: "偏低", className: "text-warning-foreground" };
+            return (
+              <div key={p.userId} className="flex items-center gap-3">
+                <div className="w-16 sm:w-20 shrink-0 text-xs font-medium truncate">
+                  {p.name}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">
+                      {p.rangeHours}h
+                    </span>
+                    <span className={`font-medium ${satLabel.className}`}>
+                      {p.rangeSaturation}% · {satLabel.text}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${saturationColor} rounded-full transition-all`}
+                      style={{ width: `${Math.max(pct, 4)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
