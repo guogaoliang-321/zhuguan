@@ -212,7 +212,7 @@ export default function DashboardPage() {
             </FilterButton>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={lightFilter} onValueChange={(v) => v && setLightFilter(v)}>
             <SelectTrigger className="w-[120px] rounded-xl bg-card border-0 shadow-soft h-9 text-sm">
               <SelectValue placeholder="状态灯" />
