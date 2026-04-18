@@ -11,12 +11,16 @@ import {
   BarChart3,
   FileText,
   LogOut,
-  Menu,
-  X,
+  User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 interface NavItem {
   label: string;
@@ -74,17 +78,18 @@ const sectionLabels: Record<string, string> = {
   admin: "ADMIN",
 };
 
+// 手机底部主导航固定展示这些路由
+const MOBILE_MAIN_HREFS = ["/dashboard", "/projects", "/worklog"];
+
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [meOpen, setMeOpen] = useState(false);
   const isAdmin = session?.user?.role === "ADMIN";
 
-  const filteredItems = navItems.filter(
-    (item) => !item.adminOnly || isAdmin
-  );
+  const filteredItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
-  // 按 section 分组
+  // 按 section 分组（桌面侧栏用）
   const sections = filteredItems.reduce<Record<string, NavItem[]>>(
     (acc, item) => {
       if (!acc[item.section]) acc[item.section] = [];
@@ -94,9 +99,18 @@ export function Sidebar() {
     {}
   );
 
-  const sidebarContent = (
+  const mobileMainItems = navItems.filter((item) =>
+    MOBILE_MAIN_HREFS.includes(item.href)
+  );
+  const mobileSheetItems = filteredItems.filter(
+    (item) => !MOBILE_MAIN_HREFS.includes(item.href)
+  );
+
+  const isHrefActive = (href: string) =>
+    pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+
+  const desktopContent = (
     <>
-      {/* Logo */}
       <div className="flex items-center gap-3 mb-10">
         <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-white font-bold text-lg shadow-primary">
           筑
@@ -109,7 +123,6 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* 导航 */}
       <nav className="flex-1 space-y-1">
         {Object.entries(sections).map(([section, items]) => (
           <div key={section}>
@@ -117,15 +130,11 @@ export function Sidebar() {
               {sectionLabels[section]}
             </div>
             {items.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" &&
-                  pathname.startsWith(item.href));
+              const isActive = isHrefActive(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => setMobileOpen(false)}
                   className={cn(
                     "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mb-1",
                     isActive
@@ -142,7 +151,6 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* 用户卡片 */}
       {session?.user && (
         <div className="mt-auto rounded-2xl bg-gradient-to-br from-primary/5 to-chart-4/5 p-3.5">
           <div className="flex items-center gap-3">
@@ -174,36 +182,121 @@ export function Sidebar() {
     <>
       {/* 桌面侧边栏 */}
       <aside className="hidden md:flex w-[260px] flex-col fixed h-screen bg-card border-r border-border p-5 pt-8 z-10">
-        {sidebarContent}
+        {desktopContent}
       </aside>
 
-      {/* 移动端汉堡按钮 */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="fixed top-4 left-4 z-50 md:hidden rounded-xl shadow-soft bg-card"
-        onClick={() => setMobileOpen(!mobileOpen)}
-      >
-        {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </Button>
-
-      {/* 移动端侧边栏遮罩 */}
-      {mobileOpen && (
+      {/* 移动端底部导航 */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur-lg border-t border-border">
         <div
-          className="fixed inset-0 bg-black/30 z-30 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+          className="grid grid-cols-4 px-1 pt-1.5"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 6px)" }}
+        >
+          {mobileMainItems.map((item) => {
+            const isActive = isHrefActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors",
+                  isActive
+                    ? "text-primary"
+                    : "text-muted-foreground active:text-foreground"
+                )}
+              >
+                <item.icon
+                  className={cn(
+                    "w-[22px] h-[22px]",
+                    isActive && "text-primary"
+                  )}
+                />
+                {item.label}
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMeOpen(true)}
+            className={cn(
+              "flex flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors",
+              meOpen
+                ? "text-primary"
+                : "text-muted-foreground active:text-foreground"
+            )}
+          >
+            <UserIcon className="w-[22px] h-[22px]" />
+            我
+          </button>
+        </div>
+      </nav>
 
-      {/* 移动端侧边栏 */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 w-[260px] flex flex-col bg-card border-r border-border p-5 pt-8 z-40 md:hidden transition-transform duration-300",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        {sidebarContent}
-      </aside>
+      {/* 移动端「我」面板 */}
+      <Sheet open={meOpen} onOpenChange={setMeOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl pb-6 md:hidden">
+          <SheetHeader>
+            <SheetTitle>我的</SheetTitle>
+          </SheetHeader>
+          {session?.user && (
+            <div className="px-4 pb-2">
+              <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-primary/5 to-chart-4/5 p-3.5">
+                <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white text-[15px] font-semibold shadow-primary/30 shadow-md">
+                  {session.user.name?.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold truncate">
+                    {session.user.name}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {session.user.role === "ADMIN" ? "管理员" : "成员"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mobileSheetItems.length > 0 && (
+            <div className="px-4 pb-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[1.5px] text-muted-foreground px-1 pt-2 pb-1.5">
+                管理
+              </div>
+              <div className="space-y-1">
+                {mobileSheetItems.map((item) => {
+                  const isActive = isHrefActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMeOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-accent text-accent-foreground font-semibold"
+                          : "text-foreground/80 hover:bg-accent"
+                      )}
+                    >
+                      <item.icon className="w-[18px] h-[18px]" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="px-4 pt-2">
+            <button
+              onClick={() => {
+                setMeOpen(false);
+                signOut({ callbackUrl: "/login" });
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-destructive bg-destructive/5 hover:bg-destructive/10 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              退出登录
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

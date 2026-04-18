@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, differenceInDays } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -22,7 +22,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { LayoutGrid, List, MessageSquare, ClipboardList, CheckCircle2 } from "lucide-react";
+import {
+  LayoutGrid,
+  List,
+  MessageSquare,
+  ClipboardList,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ArrowRight,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PHASE_LABELS, PHASE_OPTIONS } from "@/lib/constants";
 import type { DashboardProject, DashboardStats, TrafficLight } from "@/app/api/dashboard/route";
 
@@ -38,6 +48,7 @@ interface ActivityItem {
 }
 
 type ViewMode = "card" | "table";
+type StatFilter = null | "active" | "green" | "yellow" | "red";
 
 const LIGHT_CONFIG: Record<TrafficLight, { label: string; color: string; dot: string }> = {
   green: { label: "正常", color: "bg-success/10 text-success", dot: "bg-success" },
@@ -55,6 +66,7 @@ const GRADIENT_AVATARS = [
 
 export default function DashboardPage() {
   const router = useRouter();
+  const projectListRef = useRef<HTMLDivElement>(null);
   const [projects, setProjects] = useState<DashboardProject[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -63,6 +75,7 @@ export default function DashboardPage() {
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [lightFilter, setLightFilter] = useState("all");
   const [leadFilter, setLeadFilter] = useState("all");
+  const [statFilter, setStatFilter] = useState<StatFilter>(null);
 
   useEffect(() => {
     fetch("/api/dashboard")
@@ -86,9 +99,18 @@ export default function DashboardPage() {
       if (phaseFilter !== "all" && p.phase !== phaseFilter) return false;
       if (lightFilter !== "all" && p.light !== lightFilter) return false;
       if (leadFilter !== "all" && p.lead.id !== leadFilter) return false;
+      if (statFilter === "active" && p.status !== "ACTIVE") return false;
+      if (
+        (statFilter === "green" ||
+          statFilter === "yellow" ||
+          statFilter === "red") &&
+        p.light !== statFilter
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [projects, phaseFilter, lightFilter, leadFilter]);
+  }, [projects, phaseFilter, lightFilter, leadFilter, statFilter]);
 
   function dueLabel(p: DashboardProject) {
     if (!p.nearestMilestone) return "-";
@@ -97,6 +119,13 @@ export default function DashboardPage() {
     if (diff < 0) return `逾期 ${Math.abs(diff)} 天`;
     if (diff === 0) return "今天到期";
     return format(due, "MM/dd");
+  }
+
+  function toggleStat(next: Exclude<StatFilter, null>) {
+    setStatFilter((prev) => (prev === next ? null : next));
+    setTimeout(() => {
+      projectListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   }
 
   if (loading) {
@@ -123,75 +152,58 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">进度看板</h1>
-        <p className="text-muted-foreground mt-1">实时掌握全所项目进展</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">进度看板</h1>
+        <p className="text-muted-foreground mt-1 text-sm sm:text-base">实时掌握全所项目进展</p>
       </div>
 
-      {/* Stats - 手机端紧凑四列 */}
+      {/* Stats - 手机端紧凑四列（可点击筛选） */}
       <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-8">
-        <StatCard emoji="📌" label="进行中" value={stats!.active} change={`共${stats!.total}个`} />
-        <StatCard emoji="✅" label="正常" value={stats!.green} color="text-success" change={stats!.active > 0 ? `${Math.round((stats!.green / stats!.active) * 100)}%` : "0%"} />
-        <StatCard emoji="⚠️" label="即将到期" value={stats!.yellow} color="text-warning-foreground" change="3天内" />
-        <StatCard emoji="🚨" label="已逾期" value={stats!.red} color="text-destructive" change="需处理" />
+        <StatCard
+          emoji="📌"
+          label="进行中"
+          value={stats!.active}
+          change={`共${stats!.total}个`}
+          active={statFilter === "active"}
+          onClick={() => toggleStat("active")}
+        />
+        <StatCard
+          emoji="✅"
+          label="正常"
+          value={stats!.green}
+          color="text-success"
+          change={stats!.active > 0 ? `${Math.round((stats!.green / stats!.active) * 100)}%` : "0%"}
+          active={statFilter === "green"}
+          ring="ring-success"
+          onClick={() => toggleStat("green")}
+        />
+        <StatCard
+          emoji="⚠️"
+          label="即将到期"
+          value={stats!.yellow}
+          color="text-warning-foreground"
+          change="3天内"
+          active={statFilter === "yellow"}
+          ring="ring-warning"
+          onClick={() => toggleStat("yellow")}
+        />
+        <StatCard
+          emoji="🚨"
+          label="已逾期"
+          value={stats!.red}
+          color="text-destructive"
+          change="需处理"
+          active={statFilter === "red"}
+          ring="ring-destructive"
+          onClick={() => toggleStat("red")}
+        />
       </div>
 
-      {/* 最新项目动态 */}
-      <Card className="shadow-soft rounded-2xl mb-6 sm:mb-8">
-        <CardContent className="pt-4 pb-3 sm:pt-5 sm:pb-4">
-          <h3 className="text-sm font-semibold mb-3">最新项目动态</h3>
-          {activities.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-4">暂无动态</p>
-          ) : (
-            <div className="space-y-2.5">
-              {activities.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-start gap-2.5 cursor-pointer hover:bg-accent/30 rounded-lg px-2 py-1.5 -mx-2 transition-colors"
-                  onClick={() => router.push(`/projects/${a.projectId}`)}
-                >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                    a.type === "note"
-                      ? "bg-primary/10 text-primary"
-                      : a.type === "milestone"
-                        ? "bg-success/10 text-success"
-                        : "bg-chart-5/10 text-chart-5"
-                  }`}>
-                    {a.type === "note" ? (
-                      <MessageSquare className="w-3.5 h-3.5" />
-                    ) : a.type === "milestone" ? (
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                    ) : (
-                      <ClipboardList className="w-3.5 h-3.5" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs leading-relaxed">
-                      <span className="font-semibold">{a.userName}</span>
-                      <span className="text-muted-foreground"> · </span>
-                      <span className="text-muted-foreground">{a.projectName}</span>
-                    </p>
-                    <p className="text-xs text-foreground/80 truncate">{a.content}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-muted-foreground">
-                        {format(new Date(a.time), "MM/dd HH:mm")}
-                      </span>
-                      {a.extra && (
-                        <Badge variant="secondary" className="rounded-full text-[9px] px-1.5 py-0">
-                          {a.extra}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* 最新项目动态 - 轮播 */}
+      <ActivityCarousel activities={activities} />
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div ref={projectListRef} className="flex flex-wrap items-center justify-between gap-3 mb-6 scroll-mt-4">
         <div className="flex flex-wrap gap-2">
           <FilterButton active={phaseFilter === "all"} onClick={() => setPhaseFilter("all")}>全部</FilterButton>
           {PHASE_OPTIONS.map((o) => (
@@ -239,6 +251,28 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* 当前筛选提示 */}
+      {statFilter && (
+        <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground">
+          <span>已筛选：</span>
+          <Badge variant="secondary" className="rounded-full text-[11px]">
+            {statFilter === "active"
+              ? "进行中"
+              : statFilter === "green"
+                ? "正常"
+                : statFilter === "yellow"
+                  ? "即将到期"
+                  : "已逾期"}
+          </Badge>
+          <button
+            onClick={() => setStatFilter(null)}
+            className="text-primary hover:underline"
+          >
+            清除
+          </button>
+        </div>
+      )}
 
       {/* Content */}
       {filtered.length === 0 ? (
@@ -319,20 +353,50 @@ export default function DashboardPage() {
 
 // ====== Sub Components ======
 
-function StatCard({ emoji, label, value, color, change }: {
-  emoji: string; label: string; value: number; color?: string; change: string;
+function StatCard({
+  emoji,
+  label,
+  value,
+  color,
+  change,
+  active,
+  ring,
+  onClick,
+}: {
+  emoji: string;
+  label: string;
+  value: number;
+  color?: string;
+  change: string;
+  active?: boolean;
+  ring?: string;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="hover-lift shadow-soft rounded-xl sm:rounded-2xl">
-      <CardContent className="pt-3 pb-2 px-3 sm:pt-6 sm:pb-4 sm:px-6">
-        <div className="text-base sm:text-2xl mb-1 sm:mb-3">{emoji}</div>
-        <p className="text-[10px] sm:text-[13px] text-muted-foreground font-medium mb-0.5 sm:mb-1.5 truncate">{label}</p>
-        <p className={`text-2xl sm:text-4xl font-bold tracking-tighter ${color ?? ""}`}>{value}</p>
-        <Badge variant="secondary" className="mt-1 sm:mt-2 rounded-full text-[9px] sm:text-xs font-medium">
-          {change}
-        </Badge>
-      </CardContent>
-    </Card>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "text-left w-full rounded-xl sm:rounded-2xl transition-all focus:outline-none",
+        active && `ring-2 ring-offset-2 ring-offset-background ${ring ?? "ring-primary"}`
+      )}
+    >
+      <Card className="hover-lift shadow-soft rounded-xl sm:rounded-2xl h-full">
+        <CardContent className="pt-3 pb-3 px-2 sm:pt-6 sm:pb-4 sm:px-6 h-full flex flex-col">
+          <div className="text-lg sm:text-2xl mb-1 sm:mb-3 leading-none">{emoji}</div>
+          <p className="text-[11px] sm:text-[13px] text-muted-foreground font-medium mb-1 sm:mb-1.5 leading-tight whitespace-nowrap">
+            {label}
+          </p>
+          <p className={`text-2xl sm:text-4xl font-bold tracking-tight ${color ?? ""}`}>{value}</p>
+          <Badge
+            variant="secondary"
+            className="mt-1.5 sm:mt-2 rounded-full text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0 max-w-full whitespace-nowrap"
+          >
+            {change}
+          </Badge>
+        </CardContent>
+      </Card>
+    </button>
   );
 }
 
@@ -350,6 +414,171 @@ function FilterButton({ active, onClick, children }: {
     >
       {children}
     </button>
+  );
+}
+
+function ActivityCarousel({ activities }: { activities: ActivityItem[] }) {
+  const router = useRouter();
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+
+  const scrollTo = (i: number) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const card = track.children[i] as HTMLElement | undefined;
+    if (!card) return;
+    track.scrollTo({ left: card.offsetLeft - track.offsetLeft, behavior: "smooth" });
+  };
+
+  const prev = () => {
+    const next = Math.max(0, index - 1);
+    setIndex(next);
+    scrollTo(next);
+  };
+
+  const next = () => {
+    const nextIdx = Math.min(activities.length - 1, index + 1);
+    setIndex(nextIdx);
+    scrollTo(nextIdx);
+  };
+
+  const handleScroll = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const scrollLeft = track.scrollLeft;
+    let closest = 0;
+    let min = Infinity;
+    Array.from(track.children).forEach((child, i) => {
+      const el = child as HTMLElement;
+      const delta = Math.abs(el.offsetLeft - track.offsetLeft - scrollLeft);
+      if (delta < min) {
+        min = delta;
+        closest = i;
+      }
+    });
+    setIndex(closest);
+  };
+
+  return (
+    <Card className="shadow-soft rounded-2xl mb-6 sm:mb-8">
+      <CardContent className="pt-4 pb-4 sm:pt-5 sm:pb-5">
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <h3 className="text-sm font-semibold shrink-0">最新项目动态</h3>
+          <Link
+            href="/activities"
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/15 px-2.5 py-1 rounded-full transition-colors whitespace-nowrap"
+          >
+            查看全部动态
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+
+        {activities.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-6">暂无动态</p>
+        ) : (
+          <>
+            <div
+              ref={trackRef}
+              onScroll={handleScroll}
+              className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 scroll-smooth [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+            >
+              {activities.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => router.push(`/projects/${a.projectId}`)}
+                  className="snap-start shrink-0 basis-full sm:basis-[calc(50%-6px)] lg:basis-[calc(33.333%-8px)] text-left"
+                >
+                  <div className="h-full rounded-xl border border-border/60 bg-card p-3.5 hover:bg-accent/40 transition-colors">
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          a.type === "note"
+                            ? "bg-primary/10 text-primary"
+                            : a.type === "milestone"
+                              ? "bg-success/10 text-success"
+                              : "bg-chart-5/10 text-chart-5"
+                        }`}
+                      >
+                        {a.type === "note" ? (
+                          <MessageSquare className="w-4 h-4" />
+                        ) : a.type === "milestone" ? (
+                          <CheckCircle2 className="w-4 h-4" />
+                        ) : (
+                          <ClipboardList className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs leading-relaxed">
+                          <span className="font-semibold">{a.userName}</span>
+                          <span className="text-muted-foreground"> · </span>
+                          <span className="text-muted-foreground truncate">{a.projectName}</span>
+                        </p>
+                        <p className="text-sm text-foreground/90 mt-0.5 line-clamp-3 break-words min-h-[3.9em]">
+                          {a.content}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className="text-[10px] text-muted-foreground">
+                            {format(new Date(a.time), "MM/dd HH:mm")}
+                          </span>
+                          {a.extra && (
+                            <Badge
+                              variant="secondary"
+                              className="rounded-full text-[9px] px-1.5 py-0"
+                            >
+                              {a.extra}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {activities.length > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={prev}
+                  disabled={index === 0}
+                  className="w-7 h-7 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="上一条"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-1.5">
+                  {activities.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      aria-label={`跳转到第 ${i + 1} 条动态`}
+                      onClick={() => {
+                        setIndex(i);
+                        scrollTo(i);
+                      }}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all",
+                        i === index ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"
+                      )}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={next}
+                  disabled={index >= activities.length - 1}
+                  className="w-7 h-7 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="下一条"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
