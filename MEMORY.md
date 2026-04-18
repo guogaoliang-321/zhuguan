@@ -84,7 +84,7 @@
 |---|---|---|---|---|---|---|
 | 1 | **权限基础设施** | `lib/permissions.ts` + 所有 API route 接入 + UI 按角色隐藏按钮 | — | 1 天 | 🔴 必须 | ✅ 已完成 |
 | 2 | **「我的工作量」MVP** | 新页面 `/my/workload` + API `/api/worklogs/mine?month=`；本月工时、项目饼图、类别分布、按周折线 | 阶段 1 | 0.5 天 | 🔴 核心痛点 | ✅ 已完成 |
-| 3 | **Schema 三改 + 数据回填** | migration：`WorkLog.hours` 去 `?`、`category` 去 `?`（NULL → "其他"）、新增 `User.weeklyCapacity Decimal @default(40)` | 阶段 2 | 0.25 天 | 🟡 | ⏸ 待启动 |
+| 3 | **Schema 三改 + 数据回填** | migration：`WorkLog.hours` 去 `?`、`category` 去 `?`（NULL → "其他"）、新增 `User.weeklyCapacity Decimal @default(40)` | 阶段 2 | 0.25 天 | 🟡 | ✅ 已完成 |
 | 4 | **管理员看板加时间范围** | `people-board` API 加 `?from=&to=` 参数；UI 加「本月/上月/本季/自定义」筛选；工时趋势图 | 阶段 1+3 | 0.75 天 | 🟡 | ⏸ 待启动 |
 | 5 | **我的工作量升级** | 饱和度环（基于 `weeklyCapacity`）+ 历史月份切换 + 按项目展开 | 阶段 3 | 0.25 天 | 🟢 | ⏸ 待启动 |
 | 6 | **团队横向对比视图** | 管理员视图：全员本月工时柱状图 / 饱和度散点 | 阶段 3+4 | 0.5 天 | 🟢 可选 | ⏸ 待启动 |
@@ -184,7 +184,12 @@
   - 新增 `src/app/api/worklogs/mine/route.ts`（按月聚合：工时总计、按项目/类别/周分布、本周补录提醒）
   - 新增页面 `src/app/(main)/my/workload/page.tsx`（月份切换、3 个统计卡、按周柱状图、按项目/类别横条、最近 20 条记录）
   - 侧栏 workspace 区 + 手机「我的」Sheet「个人」组 均新增入口
-- ⏭️ 下一步：阶段 3 Schema 三改
+- ✅ **阶段 3 完成**：
+  - migration `20260418160135_require_hours_category_add_capacity` 已应用到本地库
+  - `User.weeklyCapacity Decimal @default(40)` 新增
+  - `WorkLog.hours` / `category` 改为必填，历史 NULL 回填 0 / "其他"
+  - API Zod: `category` 改为 `.min(1)`；表单加 `*` 标记 + 禁用未选择类别时提交
+  - Zeabur 部署会自动执行 `prisma migrate deploy`
 
 ---
 

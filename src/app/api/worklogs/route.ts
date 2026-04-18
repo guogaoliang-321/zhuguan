@@ -20,7 +20,7 @@ const createWorklogSchema = z.object({
   date: z.string().min(1, "请选择日期"),
   hours: z.number().min(0.5, "工时至少0.5小时").max(24),
   content: z.string().min(1, "请填写工作内容"),
-  category: z.string().optional().nullable(),
+  category: z.string().min(1, "请选择工作类别"),
   // ADMIN 代人填报时使用，否则忽略
   userId: z.string().optional(),
 });

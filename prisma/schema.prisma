@@ -32,18 +32,19 @@ enum ProjectStatus {
 // ==================== Models ====================
 
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  password  String
-  name      String
-  role      UserRole @default(MEMBER)
-  phone     String?
-  department String?
-  position  String?
-  avatar    String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  username       String   @unique
+  password       String
+  name           String
+  role           UserRole @default(MEMBER)
+  phone          String?
+  department     String?
+  position       String?
+  avatar         String?
+  weeklyCapacity Decimal  @default(40) // 每周标准工时，用于计算饱和度
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   ledProjects    Project[]       @relation("ProjectLead")
   projectMembers ProjectMember[]
@@ -138,9 +139,9 @@ model WorkLog {
   userId    String
   projectId String
   date      DateTime
-  hours     Decimal?
+  hours     Decimal
   content   String
-  category  String?
+  category  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

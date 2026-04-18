@@ -53,7 +53,7 @@ export default function NewWorklogPage() {
         date,
         hours: Number(hours),
         content,
-        category: category || null,
+        category,
       }),
     });
 
@@ -130,7 +130,7 @@ export default function NewWorklogPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>工作类别</Label>
+              <Label>工作类别 *</Label>
               <Select value={category} onValueChange={(v) => v && setCategory(v)}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="选择类别" />
@@ -171,7 +171,7 @@ export default function NewWorklogPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={loading || !projectId || !content}
+                disabled={loading || !projectId || !content || !category}
                 className="gradient-primary text-white shadow-primary rounded-xl"
               >
                 <Save className="w-4 h-4 mr-2" />
