@@ -12,6 +12,7 @@ import {
   FileText,
   LogOut,
   User as UserIcon,
+  PieChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -47,6 +48,12 @@ const navItems: NavItem[] = [
     label: "工作记录",
     href: "/worklog",
     icon: ClipboardList,
+    section: "workspace",
+  },
+  {
+    label: "我的工作量",
+    href: "/my/workload",
+    icon: PieChart,
     section: "workspace",
   },
   {
@@ -89,7 +96,17 @@ const MOBILE_SHORT_LABEL: Record<string, string> = {
 };
 
 // 这些路由只出现在「我的」Sheet 里，不进入底部标签栏
-const MOBILE_SHEET_ONLY = new Set(["/admin/weekly", "/admin/users"]);
+const MOBILE_SHEET_ONLY = new Set([
+  "/my/workload",
+  "/admin/weekly",
+  "/admin/users",
+]);
+
+// 「我的」Sheet 里的分组标题
+const SHEET_SECTION_LABELS: Record<string, string> = {
+  workspace: "个人",
+  admin: "管理",
+};
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -117,6 +134,15 @@ export function Sidebar() {
     MOBILE_SHEET_ONLY.has(item.href)
   );
   const mobileSlotCount = mobileNavItems.length + 1;
+
+  // 按 section 分组 Sheet 内容
+  const mobileSheetItemsBySection = Object.entries(
+    mobileSheetItems.reduce<Record<string, NavItem[]>>((acc, item) => {
+      if (!acc[item.section]) acc[item.section] = [];
+      acc[item.section].push(item);
+      return acc;
+    }, {})
+  ).map(([section, items]) => ({ section, items }));
 
   const isHrefActive = (href: string) =>
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
@@ -267,13 +293,13 @@ export function Sidebar() {
             </div>
           )}
 
-          {mobileSheetItems.length > 0 && (
-            <div className="px-4 pb-2">
+          {mobileSheetItemsBySection.map(({ section, items }) => (
+            <div key={section} className="px-4 pb-2">
               <div className="text-[11px] font-semibold uppercase tracking-[1.5px] text-muted-foreground px-1 pt-2 pb-1.5">
-                管理
+                {SHEET_SECTION_LABELS[section] ?? section}
               </div>
               <div className="space-y-1">
-                {mobileSheetItems.map((item) => {
+                {items.map((item) => {
                   const isActive = isHrefActive(item.href);
                   return (
                     <Link
@@ -294,7 +320,7 @@ export function Sidebar() {
                 })}
               </div>
             </div>
-          )}
+          ))}
 
           <div className="px-4 pt-2">
             <button

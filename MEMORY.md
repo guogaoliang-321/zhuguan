@@ -83,7 +83,7 @@
 | # | 阶段 | 交付物 | 依赖 | 估时 | 优先级 | 状态 |
 |---|---|---|---|---|---|---|
 | 1 | **权限基础设施** | `lib/permissions.ts` + 所有 API route 接入 + UI 按角色隐藏按钮 | — | 1 天 | 🔴 必须 | ✅ 已完成 |
-| 2 | **「我的工作量」MVP** | 新页面 `/my/workload` + API `/api/worklogs/mine?month=`；本月工时、项目饼图、类别分布、按周折线 | 阶段 1 | 0.5 天 | 🔴 核心痛点 | ⏸ 待启动 |
+| 2 | **「我的工作量」MVP** | 新页面 `/my/workload` + API `/api/worklogs/mine?month=`；本月工时、项目饼图、类别分布、按周折线 | 阶段 1 | 0.5 天 | 🔴 核心痛点 | ✅ 已完成 |
 | 3 | **Schema 三改 + 数据回填** | migration：`WorkLog.hours` 去 `?`、`category` 去 `?`（NULL → "其他"）、新增 `User.weeklyCapacity Decimal @default(40)` | 阶段 2 | 0.25 天 | 🟡 | ⏸ 待启动 |
 | 4 | **管理员看板加时间范围** | `people-board` API 加 `?from=&to=` 参数；UI 加「本月/上月/本季/自定义」筛选；工时趋势图 | 阶段 1+3 | 0.75 天 | 🟡 | ⏸ 待启动 |
 | 5 | **我的工作量升级** | 饱和度环（基于 `weeklyCapacity`）+ 历史月份切换 + 按项目展开 | 阶段 3 | 0.25 天 | 🟢 | ⏸ 待启动 |
@@ -180,7 +180,11 @@
   - 15 个 API route 接入权限模块，散落的 `role !== "ADMIN"` 全部清理
   - 「新建项目」按钮按角色隐藏；项目详情 `canEdit` 统一出口
   - **遗留**：PROJECT_LEAD 在人员看板的下属视图要到阶段 4 才补；手动验证 MEMBER 角色的行为待做
-- ⏭️ 下一步：阶段 2「我的工作量」MVP
+- ✅ **阶段 2 完成**：
+  - 新增 `src/app/api/worklogs/mine/route.ts`（按月聚合：工时总计、按项目/类别/周分布、本周补录提醒）
+  - 新增页面 `src/app/(main)/my/workload/page.tsx`（月份切换、3 个统计卡、按周柱状图、按项目/类别横条、最近 20 条记录）
+  - 侧栏 workspace 区 + 手机「我的」Sheet「个人」组 均新增入口
+- ⏭️ 下一步：阶段 3 Schema 三改
 
 ---
 
