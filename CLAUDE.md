@@ -34,7 +34,12 @@ PORT=3002 npm run dev
 # 数据库操作
 npm run db:seed      # 写入示例数据
 npm run db:studio    # Prisma Studio
-npm run db:migrate   # 运行迁移
+npm run db:migrate   # 运行迁移（prisma migrate dev）
+
+# Schema 改动后必须重新生成 Prisma client
+npx prisma generate
+
+# 线上部署会自动执行 prisma migrate deploy（build 脚本里）
 ```
 
 ## 默认账号
@@ -49,18 +54,41 @@ npm run db:migrate   # 运行迁移
 - **Seed API**：`POST /api/seed?secret=NEXTAUTH_SECRET` 用于线上初始化数据
 - **middleware.ts** 有 Next.js 16 deprecation 警告（推荐 proxy.ts），功能不受影响
 
-## 权限与工作量架构
+## 权限与工作量架构（✅ 8 阶段全部落地）
 
-- **三角色**：`ADMIN` / `PROJECT_LEAD` / `MEMBER`（schema 已定义，阶段 1 开始落地）
-- **权限判定**：统一走 `src/lib/permissions.ts`，不要在 API 里散写 `role !== "ADMIN"`
-- **项目级关系**：`isLead(project)` + `isMember(project)` 派生判断，不是独立字段
-- **详细规则矩阵**：见 [`MEMORY.md`](./MEMORY.md)「权限模型」章节
-- **当前工作量体系短板**（阶段 2-8 逐项解决）：
-  - 普通员工没有「我的工作量」视图
-  - 时间尺度只有"上周+本周"
-  - `WorkLog.hours` schema 可选但 API 必填（不一致）
-  - `category` 可选导致无法按类别分析
-  - 缺少 `User.weeklyCapacity` 基线，无法计算饱和度
+### 三角色 RBAC
+- **ADMIN**：管理员，看改一切
+- **PROJECT_LEAD**：项目负责人，看所有项目，只能改自己负责的
+- **MEMBER**：普通员工，只看参与项目，只操作自己的数据
+- **权限判定唯一出口**：`src/lib/permissions.ts`（30+ 纯函数 + Prisma where 过滤器）
+- **严禁**在 API 里散写 `role !== "ADMIN"`，全部走 permissions 模块
+- **详细规则矩阵**：见 [`MEMORY.md`](./MEMORY.md) 第一节
+
+### 工作量体系
+- **`User.weeklyCapacity`**（Decimal @default 40）· 每周标准工时，用于饱和度计算
+- **`WorkLog.hours`**（Decimal 必填，0.5-24h）
+- **`WorkLog.category`**（String 必填，30 种预设类别）
+- 普通员工走 `/my/workload`，管理员走 `/admin/workload`
+
+### 主要路由
+| 页面 | 说明 |
+|------|------|
+| `/dashboard` | 进度看板 + 本周工时提醒 + 动态轮播 |
+| `/my/workload` | 我的工作量（月度 + 饱和度环） |
+| `/projects/[id]` | 项目详情，含「工时贡献」Tab |
+| `/admin/workload` | 人员看板，带时间范围选择 + 团队对比柱状 |
+| `/activities` | 全部项目动态 |
+
+### 关键 API
+| 端点 | 说明 |
+|------|------|
+| `/api/worklogs/mine?month=YYYY-MM` | 我的月度工作量聚合 |
+| `/api/projects/[id]/workload` | 项目成员工时贡献 |
+| `/api/worklogs/people-board?range=` | 人员看板，支持 `this-week/this-month/this-quarter/last-30` 或自定义 `?from&to` |
+
+### 未完成的 TODO
+- PROJECT_LEAD 在 `/api/worklogs/people-board` 和 `/weekly` 的下属 scope（目前仍仅 ADMIN）
+- `/api/users` 字段级权限（phone 等敏感字段脱敏）
 
 ## 工作类别（30 种）
 

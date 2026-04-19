@@ -4,6 +4,54 @@
 
 ---
 
+## 🎯 当前功能全景（2026-04-19 · 8 阶段全部上线）
+
+### 页面入口
+| 路由 | 说明 | 谁能访问 |
+|------|------|---------|
+| `/dashboard` | 进度看板 · 本周工时提醒、项目动态轮播、状态卡可点击筛选 | 全员（按权限过滤） |
+| `/projects` | 项目列表 | 全员（MEMBER 仅看参与的） |
+| `/projects/[id]` | 项目详情 · 节点 / 成员 / 备注 / **工时贡献** / 基本信息 | 参与项目者 |
+| `/worklog` | 工作记录列表 | 全员（看自己的） |
+| `/worklog/new` | 写工作记录（hours + category 必填） | 全员 |
+| `/my/workload` | **我的工作量** · 月度工时、饱和度环、项目/类别分布、按周柱状图 | 全员 |
+| `/activities` | 全部项目动态（按类型筛选） | 全员（按权限过滤） |
+| `/admin/workload` | 人员工作看板 · 时间范围切换、团队对比、本周未填徽章 | ADMIN |
+| `/admin/weekly` | 周报汇总 | ADMIN |
+| `/admin/users` | 用户管理 | ADMIN |
+
+### API 端点
+| 端点 | 说明 |
+|------|------|
+| `GET /api/dashboard` | 项目 + stats + 当前用户本周工时（`me`） |
+| `GET /api/activities?limit=` | 全部动态（备注/工作记录/里程碑混合） |
+| `GET /api/projects` | 项目列表（按 `projectVisibilityFilter` 过滤） |
+| `POST /api/projects` | 新建（仅 ADMIN/PROJECT_LEAD） |
+| `GET/PUT/DELETE /api/projects/[id]` | 详情 / 编辑（isLead） / 删除（仅 ADMIN） |
+| `POST /api/projects/[id]/milestones` | 新建节点（isLead 或 ADMIN） |
+| `PUT /api/projects/[id]/milestones/[mid]` | 编辑或勾选完成（完成可由 assignee 操作） |
+| `POST /api/projects/[id]/members` | 添加成员（isLead 或 ADMIN） |
+| `POST /api/projects/[id]/notes` | 发布备注（isMember 或 ADMIN） |
+| `GET /api/projects/[id]/workload` | 项目成员工时贡献聚合 |
+| `GET/POST /api/worklogs` | 列表（按 `workLogVisibilityFilter`）/ 新建 |
+| `DELETE /api/worklogs/[id]` | 删除（仅本人或 ADMIN） |
+| `GET /api/worklogs/mine?month=YYYY-MM` | 我的工作量聚合（含饱和度） |
+| `GET /api/worklogs/people-board?range=` | 人员看板 · 支持 `this-week/this-month/this-quarter/last-30` 预设或 `?from&to` |
+| `GET /api/worklogs/weekly` | 周报汇总（仅 ADMIN） |
+| `GET /api/worklogs/workload` | 工作负荷速览（仅 ADMIN） |
+
+### 核心数据字段
+- `User.weeklyCapacity Decimal @default(40)` · 每周标准工时，用于饱和度计算
+- `WorkLog.hours Decimal`（必填，0.5–24h）
+- `WorkLog.category String`（必填，30 种预设类别分 6 组）
+
+### 权限统一出口
+- `src/lib/permissions.ts` · 30+ 纯函数 + 两个 Prisma where 过滤器
+- API 严禁散写 `role !== "ADMIN"`；全部走 permissions 模块
+- UI 用 `useSession` 拿 session.user，调用 `canXxx()` 决定按钮显隐
+
+---
+
 ## 一、权限模型（三角色 RBAC）
 
 **全局角色枚举（已存在于 schema）**
