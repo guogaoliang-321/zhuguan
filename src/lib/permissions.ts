@@ -26,7 +26,7 @@ export interface ProjectCtx {
 /** 工作记录上下文：做 canEditWorkLog 判断时传入 */
 export interface WorkLogCtx {
   userId: string;
-  projectId: string;
+  projectId: string | null;
 }
 
 /** 备注上下文 */
@@ -199,7 +199,7 @@ export function workLogVisibilityFilter(
     return {
       OR: [
         { userId: u.id },
-        { project: { leadId: u.id } },
+        { projectId: { not: null }, project: { leadId: u.id } },
       ],
     };
   }
@@ -247,4 +247,27 @@ export function canViewUserWeekly(
 
 export function canManageUsers(u: SessionUser): boolean {
   return isAdmin(u);
+}
+
+// ========== 非项目类别 ==========
+
+/** 任何已登录用户都可以创建和查看非项目类别 */
+export function canManageNonProjectCategories(_u: SessionUser): boolean {
+  return true;
+}
+
+// ========== 工作记录确认 ==========
+
+/**
+ * 是否可以确认某条工作记录
+ * - ADMIN: 全部
+ * - PROJECT_LEAD: 仅自己负责项目下的记录（传入 project 参数时判断）
+ */
+export function canConfirmWorkLog(
+  u: SessionUser,
+  project?: ProjectCtx
+): boolean {
+  if (isAdmin(u)) return true;
+  if (isProjectLead(u) && project && isLeadOf(u, project)) return true;
+  return false;
 }

@@ -4,7 +4,7 @@
 
 ---
 
-## 🎯 当前功能全景（2026-04-19 · 8 阶段全部上线）
+## 🎯 当前功能全景（2026-04-28 · 会议纪要需求落地）
 
 ### 页面入口
 | 路由 | 说明 | 谁能访问 |
@@ -18,7 +18,8 @@
 | `/activities` | 全部项目动态（按类型筛选） | 全员（按权限过滤） |
 | `/admin/workload` | 人员工作看板 · 时间范围切换、团队对比、本周未填徽章 | ADMIN |
 | `/admin/weekly` | 周报汇总 | ADMIN |
-| `/admin/users` | 用户管理 | ADMIN |
+| `/admin/users` | 用户管理 · 增删改查 + **Excel 批量导入** | ADMIN |
+| `/settings` | 个人设置 · 改密码/专业/工时/退出 | 全员 |
 
 ### API 端点
 | 端点 | 说明 |
@@ -39,11 +40,26 @@
 | `GET /api/worklogs/people-board?range=` | 人员看板 · 支持 `this-week/this-month/this-quarter/last-30` 预设或 `?from&to` |
 | `GET /api/worklogs/weekly` | 周报汇总（仅 ADMIN） |
 | `GET /api/worklogs/workload` | 工作负荷速览（仅 ADMIN） |
+| `POST /api/worklogs/[id]/confirm` | PM 确认工作记录 |
+| `DELETE /api/worklogs/[id]/confirm` | 撤销确认 |
+| `GET/POST /api/categories` | 非项目类别库（全员可读写） |
+| `GET /api/users/[id]` | 单用户详情（本人或 ADMIN） |
+| `PUT /api/users/[id]` | 编辑用户（本人改基本信息/密码；ADMIN 改角色等） |
+| `DELETE /api/users/[id]` | 停用用户（软删除，仅 ADMIN） |
+| `POST /api/users/import` | Excel 批量导入用户（仅 ADMIN） |
+| `GET /api/users/template` | 下载 Excel 模板（仅 ADMIN） |
 
 ### 核心数据字段
 - `User.weeklyCapacity Decimal @default(40)` · 每周标准工时，用于饱和度计算
+- `User.idNumber String?` · 身份证号（仅 ADMIN 可见，用于批量导入时生成初始密码）
+- `User.specialty String?` · 专业方向（建筑/结构/给排水/暖通/电气等）
 - `WorkLog.hours Decimal`（必填，0.5–24h）
-- `WorkLog.category String`（必填，30 种预设类别分 6 组）
+- `WorkLog.category String?`（项目模式必填，30 种预设类别；非项目模式为 null）
+- `WorkLog.projectId String?`（可选；null = 非项目任务）
+- `WorkLog.nonProjectCategoryId String?`（非项目模式时关联 NonProjectCategory）
+- `WorkLog.confirmedAt DateTime?` · PM 确认时间（null = 未确认）
+- `WorkLog.confirmedById String?` · 确认人 ID
+- `NonProjectCategory` · 非项目类别库（id/name/createdById），全员共享，可自由新增
 
 ### 权限统一出口
 - `src/lib/permissions.ts` · 30+ 纯函数 + 两个 Prisma where 过滤器
@@ -250,6 +266,15 @@
   - admin/workload 每个人卡片头显示「本周未填」警告徽章
 
 🎉 **8 阶段路线图全部完成**
+
+### 2026-04-28（会议纪要需求落地）
+- ✅ **Schema 扩展**：WorkLog.projectId/category 改为可选；新增 nonProjectCategoryId/confirmedAt/confirmedById；User 新增 idNumber/specialty；新建 NonProjectCategory 模型；migration 已应用
+- ✅ **非项目任务**：工作记录表单支持「非项目任务」分支，非项目类别库支持全员自由新增并共享
+- ✅ **PM 确认**：项目详情页新增「待确认」Tab（含数字徽标），PROJECT_LEAD/ADMIN 可一键确认；工作记录列表展示「已确认」绿色徽章
+- ✅ **用户管理完整版**：`/admin/users` 全面重写，支持新建/编辑/停用；Excel 批量导入（拼音生成用户名，身份证后8位作初始密码）；模板下载
+- ✅ **个人设置页** `/settings`：修改密码、专业方向、每周标准工时、退出登录；侧边栏已添加入口
+- ✅ **权限扩展**：新增 canConfirmWorkLog / canManageNonProjectCategories；workLogVisibilityFilter 兼容 null projectId
+- ✅ **新依赖**：xlsx、pinyin-pro（用于 Excel 导入）
 
 ---
 

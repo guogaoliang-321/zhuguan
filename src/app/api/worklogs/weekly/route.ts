@@ -60,7 +60,7 @@ export async function GET() {
       hours,
       content: log.content,
       category: log.category,
-      projectName: log.project.name,
+      projectName: log.project?.name ?? "非项目任务",
     });
     entry.totalHours += hours;
   }

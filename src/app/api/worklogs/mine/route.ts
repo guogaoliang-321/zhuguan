@@ -23,7 +23,7 @@ export interface MineSummary {
   workDaysInMonth: number;
   /** 饱和度：总工时 / 期望工时（standardHours）*100，>100 表示超载 */
   saturation: number;
-  byProject: { projectId: string; projectName: string; hours: number }[];
+  byProject: { projectId: string | null; projectName: string; hours: number }[];
   byCategory: { category: string; hours: number }[];
   byWeek: {
     weekStart: string;
@@ -38,7 +38,7 @@ export interface MineSummary {
     hours: number;
     content: string;
     category: string | null;
-    projectId: string;
+    projectId: string | null;
     projectName: string;
   }[];
   /** 本周是否已填工时（未填 → 提示补录） */
@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
       category: true,
       projectId: true,
       project: { select: { name: true } },
+      nonProjectCategory: { select: { name: true } },
     },
   });
 
@@ -94,21 +95,22 @@ export async function GET(req: NextRequest) {
   for (const l of logs) {
     const h = l.hours ? Number(l.hours) : 0;
     totalHours += h;
-    const existing = projectMap.get(l.projectId);
+    const key = l.projectId ?? "__non_project__";
+    const projectName = l.project?.name ?? l.nonProjectCategory?.name ?? "非项目任务";
+    const existing = projectMap.get(key);
     if (existing) existing.hours += h;
-    else projectMap.set(l.projectId, { projectName: l.project.name, hours: h });
+    else projectMap.set(key, { projectName, hours: h });
 
     const cat = l.category ?? "未分类";
     categoryMap.set(cat, (categoryMap.get(cat) ?? 0) + h);
     dayKeys.add(format(l.date, "yyyy-MM-dd"));
   }
 
-  const byProject = Array.from(projectMap, ([projectId, v]) => ({
-    projectId,
+  const byProject = Array.from(projectMap, ([key, v]) => ({
+    projectId: key === "__non_project__" ? null : key,
     projectName: v.projectName,
     hours: Math.round(v.hours * 10) / 10,
-  }))
-    .sort((a, b) => b.hours - a.hours);
+  })).sort((a, b) => b.hours - a.hours);
 
   const byCategory = Array.from(categoryMap, ([category, hours]) => ({
     category,
@@ -171,8 +173,8 @@ export async function GET(req: NextRequest) {
     hours: l.hours ? Number(l.hours) : 0,
     content: l.content,
     category: l.category,
-    projectId: l.projectId,
-    projectName: l.project.name,
+    projectId: l.projectId ?? null,
+    projectName: l.project?.name ?? l.nonProjectCategory?.name ?? "非项目任务",
   }));
 
   const summary: MineSummary = {

@@ -104,6 +104,7 @@ export default function ProjectDetailPage({
   const { data: session } = useSession();
   const [project, setProject] = useState<Project | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const fetchProject = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}`);
@@ -229,6 +230,14 @@ export default function ProjectDetailPage({
           <TabsTrigger value="workload" className="rounded-lg">
             工时贡献
           </TabsTrigger>
+          <TabsTrigger value="pending" className="rounded-lg">
+            待确认
+            {pendingCount > 0 && (
+              <span className="ml-1.5 bg-orange-500 text-white text-[10px] rounded-full px-1.5 py-0.5 leading-none">
+                {pendingCount}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="info" className="rounded-lg">
             基本信息
           </TabsTrigger>
@@ -265,6 +274,10 @@ export default function ProjectDetailPage({
 
         <TabsContent value="workload">
           <WorkloadTab projectId={id} />
+        </TabsContent>
+
+        <TabsContent value="pending">
+          <PendingConfirmTab projectId={id} canConfirm={canEdit} onCountChange={setPendingCount} />
         </TabsContent>
 
         <TabsContent value="info">
@@ -784,6 +797,111 @@ function NotesTab({
           暂无备注
         </p>
       )}
+    </div>
+  );
+}
+
+// ===== 待确认工作记录 Tab =====
+
+function PendingConfirmTab({
+  projectId,
+  canConfirm,
+  onCountChange,
+}: {
+  projectId: string;
+  canConfirm: boolean;
+  onCountChange: (n: number) => void;
+}) {
+  const [logs, setLogs] = useState<
+    {
+      id: string;
+      date: string;
+      hours: number;
+      content: string;
+      category: string | null;
+      confirmedAt: string | null;
+      user: { id: string; name: string };
+    }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  const fetchLogs = useCallback(async () => {
+    const res = await fetch(`/api/worklogs?projectId=${projectId}`);
+    if (res.ok) {
+      const all = await res.json();
+      const pending = all.filter((l: { confirmedAt: string | null }) => !l.confirmedAt);
+      setLogs(pending);
+      onCountChange(pending.length);
+    }
+    setLoading(false);
+  }, [projectId, onCountChange]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  async function handleConfirm(id: string) {
+    setConfirming(id);
+    const res = await fetch(`/api/worklogs/${id}/confirm`, { method: "POST" });
+    if (res.ok) {
+      toast.success("已确认");
+      fetchLogs();
+    } else {
+      toast.error("确认失败");
+    }
+    setConfirming(null);
+  }
+
+  if (loading) return <Skeleton className="h-40 rounded-2xl" />;
+
+  if (logs.length === 0) {
+    return (
+      <Card className="shadow-soft rounded-2xl">
+        <CardContent className="py-12 text-center text-muted-foreground">
+          暂无待确认记录
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {logs.map((log) => (
+        <Card key={log.id} className="shadow-soft rounded-2xl">
+          <CardContent className="py-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-accent-foreground font-bold text-xs shrink-0">
+              {Number(log.hours)}h
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{log.content}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-muted-foreground">{log.user.name}</span>
+                <span className="text-xs text-muted-foreground">·</span>
+                <span className="text-xs text-muted-foreground">
+                  {format(new Date(log.date), "MM-dd")}
+                </span>
+                {log.category && (
+                  <Badge variant="secondary" className="rounded-full text-[10px]">
+                    {log.category}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            {canConfirm && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl text-green-600 border-green-200 hover:bg-green-50 shrink-0"
+                disabled={confirming === log.id}
+                onClick={() => handleConfirm(log.id)}
+              >
+                ✓ 确认
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

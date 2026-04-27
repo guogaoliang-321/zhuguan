@@ -15,21 +15,25 @@ import {
 } from "@/lib/permissions";
 import { z } from "zod";
 
-const createWorklogSchema = z.object({
-  projectId: z.string().min(1, "请选择项目"),
-  date: z.string().min(1, "请选择日期"),
-  hours: z.number().min(0.5, "工时至少0.5小时").max(24),
-  content: z.string().min(1, "请填写工作内容"),
-  category: z.string().min(1, "请选择工作类别"),
-  // ADMIN 代人填报时使用，否则忽略
-  userId: z.string().optional(),
-});
+const createWorklogSchema = z
+  .object({
+    projectId: z.string().optional(),
+    nonProjectCategoryId: z.string().optional(),
+    date: z.string().min(1, "请选择日期"),
+    hours: z.number().min(0.5, "工时至少0.5小时").max(24),
+    content: z.string().min(1, "请填写工作内容"),
+    category: z.string().optional(),
+    userId: z.string().optional(),
+  })
+  .refine((d) => d.projectId || d.nonProjectCategoryId, {
+    message: "请选择项目或非项目类别",
+  });
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
   if (!session) return unauthorized();
 
-  const { searchParams } = new URL(request.url);
+  const searchParams = request.nextUrl.searchParams;
   const userIdParam = searchParams.get("userId");
   const projectId = searchParams.get("projectId");
 
@@ -57,6 +61,7 @@ export async function GET(request: NextRequest) {
     where,
     include: {
       project: { select: { id: true, name: true } },
+      nonProjectCategory: { select: { id: true, name: true } },
       user: { select: { id: true, name: true } },
     },
     orderBy: { date: "desc" },
@@ -72,31 +77,36 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const parsed = createWorklogSchema.safeParse(body);
-
-  if (!parsed.success) {
-    return badRequest(parsed.error.issues[0].message);
-  }
+  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
 
   const data = parsed.data;
   const targetUserId = data.userId ?? session.user.id;
 
-  const project = await prisma.project.findUnique({
-    where: { id: data.projectId },
-    select: {
-      leadId: true,
-      members: { select: { userId: true } },
-    },
-  });
-  if (!project) return notFound("项目不存在");
-
-  if (!canCreateWorkLogFor(session.user, targetUserId, project)) {
-    return forbidden();
+  if (data.projectId) {
+    // 项目关联模式：验证项目存在且有权限
+    const project = await prisma.project.findUnique({
+      where: { id: data.projectId },
+      select: { leadId: true, members: { select: { userId: true } } },
+    });
+    if (!project) return notFound("项目不存在");
+    if (!canCreateWorkLogFor(session.user, targetUserId, project))
+      return forbidden();
+  } else {
+    // 非项目模式：只能给自己填（ADMIN 例外）
+    if (targetUserId !== session.user.id && !isAdmin(session.user))
+      return forbidden();
+    // 验证类别存在
+    const cat = await prisma.nonProjectCategory.findUnique({
+      where: { id: data.nonProjectCategoryId! },
+    });
+    if (!cat) return notFound("非项目类别不存在");
   }
 
   const log = await prisma.workLog.create({
     data: {
       userId: targetUserId,
-      projectId: data.projectId,
+      projectId: data.projectId ?? null,
+      nonProjectCategoryId: data.nonProjectCategoryId ?? null,
       date: new Date(data.date),
       hours: data.hours,
       content: data.content,
@@ -104,6 +114,7 @@ export async function POST(request: NextRequest) {
     },
     include: {
       project: { select: { id: true, name: true } },
+      nonProjectCategory: { select: { id: true, name: true } },
     },
   });
 

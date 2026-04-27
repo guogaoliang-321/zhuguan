@@ -289,8 +289,8 @@ export async function GET(req: NextRequest) {
         hours,
         content: log.content,
         category: log.category,
-        projectId: log.projectId,
-        projectName: log.project.name,
+        projectId: log.projectId ?? "",
+        projectName: log.project?.name ?? "非项目任务",
       };
 
       if (logDate >= lastWeekStart && logDate <= lastWeekEnd) {

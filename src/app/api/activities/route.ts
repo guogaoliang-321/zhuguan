@@ -76,16 +76,18 @@ export async function GET(req: NextRequest) {
       projectName: n.project.name,
       content: n.content,
     })),
-    ...logs.map((l) => ({
-      id: `log-${l.id}`,
-      type: "worklog" as const,
-      time: l.createdAt.toISOString(),
-      userName: l.user.name,
-      projectId: l.project.id,
-      projectName: l.project.name,
-      content: l.content,
-      extra: `${l.hours ? Number(l.hours) : 0}h${l.category ? ` · ${l.category}` : ""}`,
-    })),
+    ...logs
+      .filter((l) => l.project != null)
+      .map((l) => ({
+        id: `log-${l.id}`,
+        type: "worklog" as const,
+        time: l.createdAt.toISOString(),
+        userName: l.user.name,
+        projectId: l.project!.id,
+        projectName: l.project!.name,
+        content: l.content,
+        extra: `${l.hours ? Number(l.hours) : 0}h${l.category ? ` · ${l.category}` : ""}`,
+      })),
     ...milestones.map((m) => ({
       id: `ms-${m.id}`,
       type: "milestone" as const,

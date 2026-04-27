@@ -23,7 +23,9 @@ interface WorkLog {
   hours: number;
   content: string;
   category: string | null;
-  project: { id: string; name: string };
+  confirmedAt: string | null;
+  project: { id: string; name: string } | null;
+  nonProjectCategory: { id: string; name: string } | null;
 }
 
 interface ProjectOption {
@@ -39,9 +41,17 @@ export default function WorklogPage() {
 
   const fetchLogs = useCallback(async () => {
     const params = new URLSearchParams();
-    if (projectFilter !== "all") params.set("projectId", projectFilter);
+    if (projectFilter !== "all" && projectFilter !== "__non_project__") {
+      params.set("projectId", projectFilter);
+    }
     const res = await fetch(`/api/worklogs?${params}`);
-    if (res.ok) setLogs(await res.json());
+    if (res.ok) {
+      let data: WorkLog[] = await res.json();
+      if (projectFilter === "__non_project__") {
+        data = data.filter((l) => !l.project);
+      }
+      setLogs(data);
+    }
     setLoading(false);
   }, [projectFilter]);
 
@@ -91,6 +101,7 @@ export default function WorklogPage() {
             {projects.map((p) => (
               <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
             ))}
+            <SelectItem value="__non_project__">非项目任务</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -133,7 +144,9 @@ export default function WorklogPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">{log.content}</p>
                           <div className="flex items-center gap-3 mt-1">
-                            <span className="text-xs text-muted-foreground">{log.project.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {log.project?.name ?? log.nonProjectCategory?.name ?? "非项目任务"}
+                            </span>
                             {log.category && (
                               <Badge variant="secondary" className="rounded-full text-[10px]">
                                 {log.category}
@@ -141,6 +154,11 @@ export default function WorklogPage() {
                             )}
                           </div>
                         </div>
+                        {log.confirmedAt && (
+                          <Badge variant="outline" className="text-[10px] text-green-600 border-green-200 rounded-full shrink-0">
+                            已确认
+                          </Badge>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"

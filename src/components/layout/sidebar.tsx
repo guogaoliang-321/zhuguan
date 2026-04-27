@@ -13,6 +13,7 @@ import {
   LogOut,
   User as UserIcon,
   PieChart,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -77,12 +78,19 @@ const navItems: NavItem[] = [
     section: "admin",
     adminOnly: true,
   },
+  {
+    label: "个人设置",
+    href: "/settings",
+    icon: Settings,
+    section: "account",
+  },
 ];
 
 const sectionLabels: Record<string, string> = {
   overview: "OVERVIEW",
   workspace: "WORKSPACE",
   admin: "ADMIN",
+  account: "ACCOUNT",
 };
 
 // 手机底部导航的紧凑标签（覆盖默认 label）
@@ -100,12 +108,14 @@ const MOBILE_SHEET_ONLY = new Set([
   "/my/workload",
   "/admin/weekly",
   "/admin/users",
+  "/settings",
 ]);
 
 // 「我的」Sheet 里的分组标题
 const SHEET_SECTION_LABELS: Record<string, string> = {
   workspace: "个人",
   admin: "管理",
+  account: "账号",
 };
 
 export function Sidebar() {
@@ -203,6 +213,13 @@ export function Sidebar() {
                 {session.user.role === "ADMIN" ? "管理员" : "成员"}
               </div>
             </div>
+            <Link
+              href="/settings"
+              className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              title="个人设置"
+            >
+              <Settings className="w-4 h-4" />
+            </Link>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
               className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"

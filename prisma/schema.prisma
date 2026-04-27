@@ -43,14 +43,18 @@ model User {
   avatar         String?
   weeklyCapacity Decimal  @default(40) // 每周标准工时，用于计算饱和度
   isActive       Boolean  @default(true)
+  idNumber       String?  // 身份证号（仅管理员可见）
+  specialty      String?  // 专业方向（建筑/结构/给排水/暖通/电气等）
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  ledProjects    Project[]       @relation("ProjectLead")
-  projectMembers ProjectMember[]
-  milestones     Milestone[]     @relation("MilestoneAssignee")
-  projectNotes   ProjectNote[]
-  workLogs       WorkLog[]
+  ledProjects          Project[]            @relation("ProjectLead")
+  projectMembers       ProjectMember[]
+  milestones           Milestone[]          @relation("MilestoneAssignee")
+  projectNotes         ProjectNote[]
+  workLogs             WorkLog[]
+  confirmedWorkLogs    WorkLog[]            @relation("WorkLogConfirmer")
+  createdCategories    NonProjectCategory[]
 
   @@map("users")
 }
@@ -135,20 +139,37 @@ model ProjectNote {
 }
 
 model WorkLog {
-  id        String   @id @default(cuid())
-  userId    String
-  projectId String
-  date      DateTime
-  hours     Decimal
-  content   String
-  category  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String    @id @default(cuid())
+  userId               String
+  projectId            String?
+  date                 DateTime
+  hours                Decimal
+  content              String
+  category             String?
+  nonProjectCategoryId String?
+  confirmedAt          DateTime?
+  confirmedById        String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  user    User    @relation(fields: [userId], references: [id])
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id])
+  project            Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  nonProjectCategory NonProjectCategory? @relation(fields: [nonProjectCategoryId], references: [id])
+  confirmedBy        User?               @relation("WorkLogConfirmer", fields: [confirmedById], references: [id])
 
   @@index([userId, date])
   @@index([projectId])
   @@map("work_logs")
+}
+
+model NonProjectCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy User      @relation(fields: [createdById], references: [id])
+  workLogs  WorkLog[]
+
+  @@map("non_project_categories")
 }
