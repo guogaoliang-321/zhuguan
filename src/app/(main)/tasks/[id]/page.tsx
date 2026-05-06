@@ -40,6 +40,7 @@ import {
   History,
   Trash2,
   Pencil,
+  MessageSquareWarning,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -105,6 +106,8 @@ export default function TaskDetailPage({
   const [showDelay, setShowDelay] = useState(false);
   const [acting, setActing] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [appealOpen, setAppealOpen] = useState(false);
+  const [appealContent, setAppealContent] = useState("");
   const [editForm, setEditForm] = useState({
     name: "",
     estimatedHours: "0",
@@ -212,6 +215,29 @@ export default function TaskDetailPage({
       }
     }
     setEditOpen(true);
+  }
+
+  async function submitAppeal() {
+    if (appealContent.trim().length < 5) return toast.error("申诉理由至少 5 个字");
+    setActing(true);
+    const res = await fetch(`/api/appeals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetType: "task",
+        targetId: id,
+        content: appealContent.trim(),
+      }),
+    });
+    if (res.ok) {
+      toast.success("申诉已提交，管理员将在 3 个工作日内反馈");
+      setAppealOpen(false);
+      setAppealContent("");
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data?.error || "提交失败");
+    }
+    setActing(false);
   }
 
   async function submitEdit() {
@@ -431,24 +457,34 @@ export default function TaskDetailPage({
                 </Button>
               </>
             )}
-            {canEdit && (
-              <div className="ml-auto flex gap-2">
-                <Button
-                  onClick={openEditDialog}
-                  variant="outline"
-                  className="rounded-xl"
-                >
-                  <Pencil className="w-4 h-4 mr-2" /> 编辑
-                </Button>
-                <Button
-                  onClick={handleDelete}
-                  variant="ghost"
-                  className="rounded-xl text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" /> 删除
-                </Button>
-              </div>
-            )}
+            <div className="ml-auto flex gap-2">
+              {/* 申诉：任何登录用户对任务有异议都可提交 */}
+              <Button
+                onClick={() => setAppealOpen(true)}
+                variant="ghost"
+                className="rounded-xl text-orange-600 hover:bg-orange-50"
+              >
+                <MessageSquareWarning className="w-4 h-4 mr-2" /> 提出申诉
+              </Button>
+              {canEdit && (
+                <>
+                  <Button
+                    onClick={openEditDialog}
+                    variant="outline"
+                    className="rounded-xl"
+                  >
+                    <Pencil className="w-4 h-4 mr-2" /> 编辑
+                  </Button>
+                  <Button
+                    onClick={handleDelete}
+                    variant="ghost"
+                    className="rounded-xl text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> 删除
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {showDelay && (
@@ -669,6 +705,38 @@ export default function TaskDetailPage({
             </Button>
             <Button disabled={acting} onClick={submitEdit} className="rounded-xl">
               保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 申诉 Dialog */}
+      <Dialog open={appealOpen} onOpenChange={setAppealOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquareWarning className="w-5 h-5 text-orange-500" />
+              对该任务提出申诉
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              管理员会在 3 个工作日内核实并反馈。处理结果会通过站内消息通知你。
+            </p>
+            <Textarea
+              placeholder="请详细说明申诉理由（至少 5 个字）..."
+              value={appealContent}
+              onChange={(e) => setAppealContent(e.target.value)}
+              rows={5}
+              className="rounded-xl"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAppealOpen(false)} className="rounded-xl">
+              取消
+            </Button>
+            <Button disabled={acting} onClick={submitAppeal} className="rounded-xl">
+              提交申诉
             </Button>
           </DialogFooter>
         </DialogContent>

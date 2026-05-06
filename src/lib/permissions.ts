@@ -399,6 +399,27 @@ export function canViewTeamHeatmap(u: SessionUser): boolean {
   return isAdmin(u) || isProjectLead(u);
 }
 
+// ========== 申诉（Phase 2） ==========
+
+/** 谁可以处理申诉：仅 ADMIN */
+export function canResolveAppeals(u: SessionUser): boolean {
+  return isAdmin(u);
+}
+
+/** 申诉可见性：本人 + ADMIN */
+export function canViewAppeal(
+  u: SessionUser,
+  appeal: { authorId: string }
+): boolean {
+  if (isAdmin(u)) return true;
+  return appeal.authorId === u.id;
+}
+
+/** 任何登录用户都可以提交申诉 */
+export function canCreateAppeal(_u: SessionUser): boolean {
+  return true;
+}
+
 // ========== 工作记录确认 ==========
 
 /**

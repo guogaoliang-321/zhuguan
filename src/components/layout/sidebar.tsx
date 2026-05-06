@@ -16,9 +16,11 @@ import {
   Settings,
   ListTodo,
   Activity,
+  Bell,
+  MessageSquareWarning,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -68,6 +70,12 @@ const navItems: NavItem[] = [
     section: "workspace",
   },
   {
+    label: "我的申诉",
+    href: "/my/appeals",
+    icon: MessageSquareWarning,
+    section: "workspace",
+  },
+  {
     label: "团队热力图",
     href: "/admin/heatmap",
     icon: Activity,
@@ -89,11 +97,24 @@ const navItems: NavItem[] = [
     adminOnly: true,
   },
   {
+    label: "申诉处理",
+    href: "/admin/appeals",
+    icon: MessageSquareWarning,
+    section: "admin",
+    adminOnly: true,
+  },
+  {
     label: "用户管理",
     href: "/admin/users",
     icon: Users,
     section: "admin",
     adminOnly: true,
+  },
+  {
+    label: "站内消息",
+    href: "/notifications",
+    icon: Bell,
+    section: "account",
   },
   {
     label: "个人设置",
@@ -125,11 +146,14 @@ const MOBILE_SHORT_LABEL: Record<string, string> = {
 // 这些路由只出现在「我的」Sheet 里，不进入底部标签栏
 const MOBILE_SHEET_ONLY = new Set([
   "/my/workload",
+  "/my/appeals",
   "/worklog",
   "/admin/heatmap",
   "/admin/workload",
   "/admin/weekly",
   "/admin/users",
+  "/admin/appeals",
+  "/notifications",
   "/settings",
 ]);
 
@@ -144,6 +168,20 @@ export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [meOpen, setMeOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    const fetchUnread = () => {
+      fetch("/api/notifications?unread=1&limit=1")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => data && setUnreadCount(data.unreadCount ?? 0))
+        .catch(() => {});
+    };
+    fetchUnread();
+    const t = setInterval(fetchUnread, 60_000);
+    return () => clearInterval(t);
+  }, [session?.user]);
   const role = session?.user?.role;
   const isAdmin = role === "ADMIN";
   const isPM = role === "ADMIN" || role === "PROJECT_LEAD";
@@ -207,6 +245,7 @@ export function Sidebar() {
             </div>
             {items.map((item) => {
               const isActive = isHrefActive(item.href);
+              const isNotif = item.href === "/notifications";
               return (
                 <Link
                   key={item.href}
@@ -220,6 +259,11 @@ export function Sidebar() {
                 >
                   <item.icon className="w-[18px] h-[18px]" />
                   {item.label}
+                  {isNotif && unreadCount > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 leading-none font-semibold">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}

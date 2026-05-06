@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ListTodo,
@@ -13,7 +14,9 @@ import {
   Zap,
   ArrowRight,
   CalendarClock,
+  CheckCircle2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface TodayTask {
   id: string;
@@ -24,7 +27,20 @@ interface TodayTask {
   estimatedHours: number;
   plannedStart: string;
   plannedEnd: string;
+  confirmedAt: string | null;
   project: { id: string; name: string } | null;
+  assignee: { id: string };
+}
+
+function isConfirmedToday(confirmedAt: string | null): boolean {
+  if (!confirmedAt) return false;
+  const c = new Date(confirmedAt);
+  const today = new Date();
+  return (
+    c.getFullYear() === today.getFullYear() &&
+    c.getMonth() === today.getMonth() &&
+    c.getDate() === today.getDate()
+  );
 }
 
 const STATUS_LABELS: Record<string, { text: string; cls: string }> = {
@@ -36,32 +52,47 @@ const STATUS_LABELS: Record<string, { text: string; cls: string }> = {
 export function TodayTasksCard() {
   const [tasks, setTasks] = useState<TodayTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  const fetchTasks = useCallback(async () => {
+    const res = await fetch(`/api/tasks?mine=1`);
+    if (res.ok) {
+      const data: TodayTask[] = await res.json();
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+      const todays = data.filter((t) => {
+        if (t.status === "done") return false;
+        return new Date(t.plannedStart) <= todayEnd;
+      });
+      todays.sort((a, b) => {
+        if (a.status === "overdue" && b.status !== "overdue") return -1;
+        if (b.status === "overdue" && a.status !== "overdue") return 1;
+        if (a.priority === "urgent" && b.priority !== "urgent") return -1;
+        if (b.priority === "urgent" && a.priority !== "urgent") return 1;
+        return new Date(a.plannedEnd).getTime() - new Date(b.plannedEnd).getTime();
+      });
+      setTasks(todays);
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    fetch(`/api/tasks?mine=1`)
-      .then((r) => r.json())
-      .then((data: TodayTask[]) => {
-        const now = new Date();
-        const todayEnd = new Date();
-        todayEnd.setHours(23, 59, 59, 999);
-        // 今日任务 = 已开始（plannedStart <= todayEnd）且未完成且非已删除
-        const todays = data.filter((t) => {
-          if (t.status === "done") return false;
-          return new Date(t.plannedStart) <= todayEnd;
-        });
-        // 排序：逾期 > 紧急 > 截止时间近
-        todays.sort((a, b) => {
-          if (a.status === "overdue" && b.status !== "overdue") return -1;
-          if (b.status === "overdue" && a.status !== "overdue") return 1;
-          if (a.priority === "urgent" && b.priority !== "urgent") return -1;
-          if (b.priority === "urgent" && a.priority !== "urgent") return 1;
-          return new Date(a.plannedEnd).getTime() - new Date(b.plannedEnd).getTime();
-        });
-        setTasks(todays);
-      })
-      .catch(() => setTasks([]))
-      .finally(() => setLoading(false));
-  }, []);
+    fetchTasks();
+  }, [fetchTasks]);
+
+  async function dailyConfirm(taskId: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setConfirming(taskId);
+    const res = await fetch(`/api/tasks/${taskId}/daily-confirm`, { method: "POST" });
+    if (res.ok) {
+      toast.success("已确认今日");
+      await fetchTasks();
+    } else {
+      toast.error("确认失败");
+    }
+    setConfirming(null);
+  }
 
   if (loading) {
     return <Skeleton className="h-32 rounded-2xl mb-4 sm:mb-6" />;
@@ -70,6 +101,7 @@ export function TodayTasksCard() {
   if (tasks.length === 0) return null;
 
   const overdueCount = tasks.filter((t) => t.status === "overdue").length;
+  const unconfirmedCount = tasks.filter((t) => !isConfirmedToday(t.confirmedAt)).length;
 
   return (
     <Card className="shadow-soft rounded-2xl mb-4 sm:mb-6">
@@ -83,6 +115,11 @@ export function TodayTasksCard() {
               <p className="text-sm font-semibold">我的今日任务</p>
               <p className="text-xs text-muted-foreground">
                 {tasks.length} 个待办
+                {unconfirmedCount > 0 && (
+                  <span className="text-orange-600 font-medium ml-2">
+                    · {unconfirmedCount} 个待确认
+                  </span>
+                )}
                 {overdueCount > 0 && (
                   <span className="text-red-600 font-medium ml-2">
                     · {overdueCount} 个已逾期
@@ -102,13 +139,15 @@ export function TodayTasksCard() {
         <div className="space-y-2">
           {tasks.slice(0, 5).map((t) => {
             const sl = STATUS_LABELS[t.status] ?? STATUS_LABELS.pending;
+            const confirmed = isConfirmedToday(t.confirmedAt);
             return (
-              <Link key={t.id} href={`/tasks/${t.id}`}>
-                <div
-                  className={`px-3 py-2 rounded-xl border hover:bg-accent/40 transition-colors cursor-pointer ${
-                    t.status === "overdue" ? "border-red-200 bg-red-50/40" : ""
-                  }`}
-                >
+              <div
+                key={t.id}
+                className={`px-3 py-2 rounded-xl border hover:bg-accent/40 transition-colors ${
+                  t.status === "overdue" ? "border-red-200 bg-red-50/40" : ""
+                }`}
+              >
+                <Link href={`/tasks/${t.id}`} className="block">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${sl.cls}`}>
                       {sl.text}
@@ -146,8 +185,27 @@ export function TodayTasksCard() {
                       截止 {format(new Date(t.plannedEnd), "MM/dd HH:mm")}
                     </span>
                   </div>
+                </Link>
+                <div className="mt-2 flex items-center justify-between">
+                  {confirmed ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-green-700">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      今日已确认
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={confirming === t.id}
+                      onClick={(e) => dailyConfirm(t.id, e)}
+                      className="h-7 px-3 rounded-full text-xs border-primary/30 text-primary hover:bg-primary/10"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                      确认今日要做
+                    </Button>
+                  )}
                 </div>
-              </Link>
+              </div>
             );
           })}
           {tasks.length > 5 && (

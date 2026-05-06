@@ -58,6 +58,9 @@ model User {
   assignedTasks        Task[]               @relation("TaskAssignee")
   createdTasks         Task[]               @relation("TaskCreator")
   taskStatusLogs       TaskStatusLog[]
+  notifications        Notification[]
+  appeals              Appeal[]             @relation("AppealAuthor")
+  resolvedAppeals      Appeal[]             @relation("AppealResolver")
 
   @@map("users")
 }
@@ -221,6 +224,55 @@ model Task {
   @@index([projectId])
   @@index([plannedEnd])
   @@map("tasks")
+}
+
+// ==================== Phase 2：通知 + 申诉 ====================
+
+/// 站内通知
+/// type 取值约定：task_overdue | not_confirmed_3d | overload | repeated_insertion | appeal_update | task_done_pm_review | feishu
+/// payload 是 JSON，按 type 不同装载相关字段（taskId/userId/scoreId 等）
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  payload   Json?
+  /// 关联实体（用于点击跳转）：task | appeal | worklog | project | null
+  linkType  String?
+  linkId    String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+/// 申诉（员工对任务状态 / 工时 / 评分等数据有异议时提交）
+/// targetType 取值：task | worklog | score | task_status
+/// status 取值：pending | accepted | rejected | resolved
+model Appeal {
+  id           String    @id @default(cuid())
+  authorId     String
+  targetType   String
+  targetId     String
+  content      String
+  status       String    @default("pending")
+  resolvedById String?
+  resolution   String?
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  author     User  @relation("AppealAuthor", fields: [authorId], references: [id])
+  resolvedBy User? @relation("AppealResolver", fields: [resolvedById], references: [id])
+
+  @@index([authorId])
+  @@index([status])
+  @@map("appeals")
 }
 
 /// 任务状态变更历史（插队 / 延期 / 完成 / PM 处理措施全部留痕）
