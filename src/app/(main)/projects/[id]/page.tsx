@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { PHASE_LABELS, STATUS_LABELS, PHASE_OPTIONS } from "@/lib/constants";
 import { canEditProject } from "@/lib/permissions";
+import { TasksTab } from "@/components/projects/tasks-tab";
 
 interface Milestone {
   id: string;
@@ -221,6 +222,9 @@ export default function ProjectDetailPage({
           <TabsTrigger value="milestones" className="rounded-lg">
             设计节点 ({project.milestones.length})
           </TabsTrigger>
+          <TabsTrigger value="tasks" className="rounded-lg">
+            任务
+          </TabsTrigger>
           <TabsTrigger value="members" className="rounded-lg">
             项目成员 ({project.members.length})
           </TabsTrigger>
@@ -252,6 +256,10 @@ export default function ProjectDetailPage({
             canEdit={canEdit}
             onRefresh={fetchProject}
           />
+        </TabsContent>
+
+        <TabsContent value="tasks">
+          <TasksTab projectId={id} canEdit={canEdit} />
         </TabsContent>
 
         <TabsContent value="members">

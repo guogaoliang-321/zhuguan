@@ -14,6 +14,8 @@ import {
   User as UserIcon,
   PieChart,
   Settings,
+  ListTodo,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -30,6 +32,8 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   section: string;
   adminOnly?: boolean;
+  /** 仅 ADMIN + PROJECT_LEAD 可见 */
+  pmOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -46,6 +50,12 @@ const navItems: NavItem[] = [
     section: "overview",
   },
   {
+    label: "任务管理",
+    href: "/tasks",
+    icon: ListTodo,
+    section: "workspace",
+  },
+  {
     label: "工作记录",
     href: "/worklog",
     icon: ClipboardList,
@@ -56,6 +66,13 @@ const navItems: NavItem[] = [
     href: "/my/workload",
     icon: PieChart,
     section: "workspace",
+  },
+  {
+    label: "团队热力图",
+    href: "/admin/heatmap",
+    icon: Activity,
+    section: "admin",
+    pmOnly: true,
   },
   {
     label: "人员看板",
@@ -97,7 +114,9 @@ const sectionLabels: Record<string, string> = {
 const MOBILE_SHORT_LABEL: Record<string, string> = {
   "/dashboard": "看板",
   "/projects": "项目",
+  "/tasks": "任务",
   "/worklog": "记录",
+  "/admin/heatmap": "热力",
   "/admin/workload": "人员",
   "/admin/weekly": "周报",
   "/admin/users": "用户",
@@ -106,6 +125,9 @@ const MOBILE_SHORT_LABEL: Record<string, string> = {
 // 这些路由只出现在「我的」Sheet 里，不进入底部标签栏
 const MOBILE_SHEET_ONLY = new Set([
   "/my/workload",
+  "/worklog",
+  "/admin/heatmap",
+  "/admin/workload",
   "/admin/weekly",
   "/admin/users",
   "/settings",
@@ -122,9 +144,15 @@ export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [meOpen, setMeOpen] = useState(false);
-  const isAdmin = session?.user?.role === "ADMIN";
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN";
+  const isPM = role === "ADMIN" || role === "PROJECT_LEAD";
 
-  const filteredItems = navItems.filter((item) => !item.adminOnly || isAdmin);
+  const filteredItems = navItems.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (item.pmOnly && !isPM) return false;
+    return true;
+  });
 
   // 按 section 分组（桌面侧栏用）
   const sections = filteredItems.reduce<Record<string, NavItem[]>>(
