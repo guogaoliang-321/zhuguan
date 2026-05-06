@@ -39,6 +39,19 @@ export interface MilestoneCtx {
   assigneeId: string | null;
 }
 
+/** 任务上下文：做 canEditTask / canConfirmTask 判断时传入 */
+export interface TaskCtx {
+  assigneeId: string;
+  createdById?: string;
+  projectId: string | null;
+}
+
+/** 合法的任务状态值 */
+export type TaskStatus = "pending" | "in_progress" | "done" | "overdue";
+
+/** 合法的任务优先级 */
+export type TaskPriority = "normal" | "urgent";
+
 // ========== 基础角色判定 ==========
 
 export function isAdmin(u: SessionUser): boolean {
@@ -254,6 +267,136 @@ export function canManageUsers(u: SessionUser): boolean {
 /** 任何已登录用户都可以创建和查看非项目类别 */
 export function canManageNonProjectCategories(_u: SessionUser): boolean {
   return true;
+}
+
+// ========== 任务（Phase 1） ==========
+
+/**
+ * 是否可以查看某个任务
+ * - ADMIN：全部
+ * - 任务责任人：自己被派的任务
+ * - PROJECT_LEAD：自己负责项目下的任务（需传 project）
+ * - 项目成员：所在项目下的任务（需传 project）— 用于团队透明
+ */
+export function canViewTask(
+  u: SessionUser,
+  t: TaskCtx,
+  project?: ProjectCtx
+): boolean {
+  if (isAdmin(u)) return true;
+  if (t.assigneeId === u.id) return true;
+  if (!project) return false;
+  if (isProjectLead(u) && isLeadOf(u, project)) return true;
+  return isMemberOf(u, project);
+}
+
+/**
+ * 是否可以在指定项目下创建新任务
+ * - ADMIN：任何项目
+ * - 项目负责人：自己负责的项目
+ * 非项目任务（projectId = null）目前只允许 ADMIN 创建
+ */
+export function canCreateTask(u: SessionUser, p?: ProjectCtx): boolean {
+  if (isAdmin(u)) return true;
+  if (!p) return false;
+  return isLeadOf(u, p);
+}
+
+/**
+ * 是否可以编辑任务（修改名称 / 工时 / 时间 / 优先级 / 责任人等）
+ * - ADMIN：全部
+ * - 项目负责人：自己负责的项目下的任务
+ */
+export function canEditTask(
+  u: SessionUser,
+  t: TaskCtx,
+  project?: ProjectCtx
+): boolean {
+  if (isAdmin(u)) return true;
+  if (!project) return t.createdById === u.id;
+  return isLeadOf(u, project);
+}
+
+/**
+ * 是否可以删除任务
+ * - ADMIN：全部
+ * - 项目负责人：自己负责的项目下的任务
+ */
+export function canDeleteTask(
+  u: SessionUser,
+  _t: TaskCtx,
+  project?: ProjectCtx
+): boolean {
+  if (isAdmin(u)) return true;
+  if (!project) return false;
+  return isLeadOf(u, project);
+}
+
+/**
+ * 员工是否可以勾选"已完成"
+ * - ADMIN：全部（管理员代操作）
+ * - 任务责任人：自己被派的任务
+ */
+export function canMarkTaskDone(u: SessionUser, t: TaskCtx): boolean {
+  if (isAdmin(u)) return true;
+  return t.assigneeId === u.id;
+}
+
+/**
+ * 员工是否可以"每日确认"（Phase 2 启用）
+ * 仅任务责任人本人
+ */
+export function canConfirmTaskByEmployee(u: SessionUser, t: TaskCtx): boolean {
+  return t.assigneeId === u.id;
+}
+
+/**
+ * PM 是否可以确认任务完成
+ * - ADMIN：全部
+ * - 项目负责人：自己负责的项目下的任务
+ */
+export function canPMConfirmTask(
+  u: SessionUser,
+  _t: TaskCtx,
+  project?: ProjectCtx
+): boolean {
+  if (isAdmin(u)) return true;
+  if (!project) return false;
+  return isLeadOf(u, project);
+}
+
+/**
+ * 任务列表查询的可见性过滤器
+ * - ADMIN：全部
+ * - PROJECT_LEAD：自己被派的 + 自己负责项目下的
+ * - MEMBER：自己被派的 + 所在项目下的（用于项目详情页"任务"Tab）
+ */
+export function taskVisibilityFilter(
+  u: SessionUser
+): Prisma.TaskWhereInput {
+  if (isAdmin(u)) return {};
+  if (isProjectLead(u)) {
+    return {
+      OR: [
+        { assigneeId: u.id },
+        { project: { leadId: u.id } },
+      ],
+    };
+  }
+  return {
+    OR: [
+      { assigneeId: u.id },
+      { project: { members: { some: { userId: u.id } } } },
+    ],
+  };
+}
+
+/**
+ * 团队负荷热力图访问权限
+ * - ADMIN / PROJECT_LEAD 可查看
+ */
+export function canViewTeamHeatmap(u: SessionUser): boolean {
+  return isAdmin(u) || isProjectLead(u);
 }
 
 // ========== 工作记录确认 ==========

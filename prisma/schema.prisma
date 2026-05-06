@@ -55,6 +55,9 @@ model User {
   workLogs             WorkLog[]
   confirmedWorkLogs    WorkLog[]            @relation("WorkLogConfirmer")
   createdCategories    NonProjectCategory[]
+  assignedTasks        Task[]               @relation("TaskAssignee")
+  createdTasks         Task[]               @relation("TaskCreator")
+  taskStatusLogs       TaskStatusLog[]
 
   @@map("users")
 }
@@ -83,6 +86,7 @@ model Project {
   milestones Milestone[]
   notes    ProjectNote[]
   workLogs WorkLog[]
+  tasks    Task[]
 
   @@map("projects")
 }
@@ -117,6 +121,7 @@ model Milestone {
 
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignee User?   @relation("MilestoneAssignee", fields: [assigneeId], references: [id])
+  tasks    Task[]
 
   @@index([projectId])
   @@index([dueDate])
@@ -142,6 +147,7 @@ model WorkLog {
   id                   String    @id @default(cuid())
   userId               String
   projectId            String?
+  taskId               String?
   date                 DateTime
   hours                Decimal
   content              String
@@ -154,11 +160,13 @@ model WorkLog {
 
   user               User                @relation(fields: [userId], references: [id])
   project            Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task               Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
   nonProjectCategory NonProjectCategory? @relation(fields: [nonProjectCategoryId], references: [id])
   confirmedBy        User?               @relation("WorkLogConfirmer", fields: [confirmedById], references: [id])
 
   @@index([userId, date])
   @@index([projectId])
+  @@index([taskId])
   @@map("work_logs")
 }
 
@@ -172,4 +180,63 @@ model NonProjectCategory {
   workLogs  WorkLog[]
 
   @@map("non_project_categories")
+}
+
+// ==================== Phase 1：任务管理 ====================
+
+/// 任务（细粒度执行单元）
+/// status 用 String 而非 enum，避免每次扩展都需要 schema migration
+/// 取值约定：pending | in_progress | done | overdue
+/// priority 取值约定：normal | urgent
+model Task {
+  id              String    @id @default(cuid())
+  projectId       String?
+  milestoneId     String?
+  name            String
+  description     String?
+  specialty       String?   // 责任专业（建筑/结构/给排水/暖通/电气等），与 User.specialty 字典对齐
+  assigneeId      String
+  createdById     String
+  estimatedHours  Decimal   // 预估工时（小时，最小 0.5）
+  priority        String    @default("normal")
+  isInsertion     Boolean   @default(false)
+  insertionReason String?
+  plannedStart    DateTime
+  plannedEnd      DateTime
+  status          String    @default("pending")
+  confirmedAt     DateTime? // 员工每日确认（Phase 2 启用）
+  completedAt     DateTime? // 员工标记完成
+  pmConfirmedAt   DateTime? // PM 确认完成
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project    Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestone  Milestone?      @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  assignee   User            @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy  User            @relation("TaskCreator", fields: [createdById], references: [id])
+  workLogs   WorkLog[]
+  statusLogs TaskStatusLog[]
+
+  @@index([assigneeId, status])
+  @@index([projectId])
+  @@index([plannedEnd])
+  @@map("tasks")
+}
+
+/// 任务状态变更历史（插队 / 延期 / 完成 / PM 处理措施全部留痕）
+model TaskStatusLog {
+  id          String   @id @default(cuid())
+  taskId      String
+  fromStatus  String?
+  toStatus    String
+  reason      String?  // 延期原因 / 插队原因 / PM 处理措施
+  changedById String
+  changedAt   DateTime @default(now())
+
+  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  changedBy User @relation(fields: [changedById], references: [id])
+
+  @@index([taskId])
+  @@index([changedAt])
+  @@map("task_status_logs")
 }
