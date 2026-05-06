@@ -13,6 +13,7 @@
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
     "db:seed": "npx tsx prisma/seed.ts",
+    "db:seed-tasks": "npx tsx prisma/seed-tasks.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset"
   },
