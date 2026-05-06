@@ -378,11 +378,19 @@ function MilestonesTab({
   const [assigneeId, setAssigneeId] = useState("");
 
   async function handleCreate() {
+    if (!name.trim()) {
+      toast.error("请填写节点名称");
+      return;
+    }
+    if (!dueDate) {
+      toast.error("请选择截止日期");
+      return;
+    }
     const res = await fetch(`/api/projects/${projectId}/milestones`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name,
+        name: name.trim(),
         phase: msPhase,
         dueDate,
         assigneeId: assigneeId || null,
@@ -510,7 +518,6 @@ function MilestonesTab({
               </div>
               <Button
                 onClick={handleCreate}
-                disabled={!name || !dueDate}
                 className="w-full gradient-primary text-white rounded-xl"
               >
                 创建节点
