@@ -12,6 +12,22 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ArrowLeft,
   Clock,
   CalendarClock,
@@ -23,6 +39,7 @@ import {
   XCircle,
   History,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -87,6 +104,18 @@ export default function TaskDetailPage({
   const [delayReason, setDelayReason] = useState("");
   const [showDelay, setShowDelay] = useState(false);
   const [acting, setActing] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    estimatedHours: "0",
+    priority: "normal" as "normal" | "urgent",
+    plannedStart: "",
+    plannedEnd: "",
+    assigneeId: "",
+  });
+  const [memberOptions, setMemberOptions] = useState<
+    { id: string; name: string; specialty: string | null }[]
+  >([]);
 
   const fetchTask = useCallback(async () => {
     const res = await fetch(`/api/tasks/${id}`);
@@ -151,6 +180,69 @@ export default function TaskDetailPage({
     } else {
       toast.error("删除失败");
     }
+  }
+
+  async function openEditDialog() {
+    if (!task) return;
+    setEditForm({
+      name: task.name,
+      estimatedHours: String(Number(task.estimatedHours)),
+      priority: task.priority as "normal" | "urgent",
+      plannedStart: new Date(task.plannedStart).toISOString().slice(0, 16),
+      plannedEnd: new Date(task.plannedEnd).toISOString().slice(0, 16),
+      assigneeId: task.assignee.id,
+    });
+    // 拉项目成员（含 lead）填责任人下拉
+    if (task.project) {
+      try {
+        const res = await fetch(`/api/projects?include=members`);
+        const all = await res.json();
+        const proj = all.find((p: { id: string }) => p.id === task.project!.id);
+        if (proj) {
+          const members = [
+            { id: proj.lead.id, name: proj.lead.name + "（负责人）", specialty: proj.lead.specialty },
+            ...proj.members
+              .filter((m: { user: { id: string } }) => m.user.id !== proj.lead.id)
+              .map((m: { user: { id: string; name: string; specialty: string | null } }) => m.user),
+          ];
+          setMemberOptions(members);
+        }
+      } catch {
+        setMemberOptions([{ id: task.assignee.id, name: task.assignee.name, specialty: task.assignee.specialty }]);
+      }
+    }
+    setEditOpen(true);
+  }
+
+  async function submitEdit() {
+    const hours = Number(editForm.estimatedHours);
+    if (!editForm.name.trim()) return toast.error("任务名称不能为空");
+    if (hours < 0.5) return toast.error("预估工时至少 0.5 小时");
+    if (new Date(editForm.plannedEnd) <= new Date(editForm.plannedStart))
+      return toast.error("结束时间必须晚于开始时间");
+
+    setActing(true);
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editForm.name.trim(),
+        estimatedHours: hours,
+        priority: editForm.priority,
+        plannedStart: new Date(editForm.plannedStart).toISOString(),
+        plannedEnd: new Date(editForm.plannedEnd).toISOString(),
+        assigneeId: editForm.assigneeId,
+      }),
+    });
+    if (res.ok) {
+      toast.success("任务已更新");
+      setEditOpen(false);
+      await fetchTask();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data?.error || "更新失败");
+    }
+    setActing(false);
   }
 
   if (loading) {
@@ -340,13 +432,22 @@ export default function TaskDetailPage({
               </>
             )}
             {canEdit && (
-              <Button
-                onClick={handleDelete}
-                variant="ghost"
-                className="rounded-xl text-destructive hover:bg-destructive/10 ml-auto"
-              >
-                <Trash2 className="w-4 h-4 mr-2" /> 删除
-              </Button>
+              <div className="ml-auto flex gap-2">
+                <Button
+                  onClick={openEditDialog}
+                  variant="outline"
+                  className="rounded-xl"
+                >
+                  <Pencil className="w-4 h-4 mr-2" /> 编辑
+                </Button>
+                <Button
+                  onClick={handleDelete}
+                  variant="ghost"
+                  className="rounded-xl text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> 删除
+                </Button>
+              </div>
             )}
           </div>
 
@@ -474,6 +575,104 @@ export default function TaskDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {/* 编辑 Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="rounded-2xl max-w-lg">
+          <DialogHeader>
+            <DialogTitle>编辑任务</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>任务名称</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                className="rounded-xl"
+              />
+            </div>
+            {memberOptions.length > 0 && (
+              <div className="space-y-2">
+                <Label>责任人</Label>
+                <Select
+                  value={editForm.assigneeId}
+                  onValueChange={(v) => v && setEditForm((f) => ({ ...f, assigneeId: v }))}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {memberOptions.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                        {m.specialty ? `（${m.specialty}）` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>预估工时（h）</Label>
+                <Input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={editForm.estimatedHours}
+                  onChange={(e) => setEditForm((f) => ({ ...f, estimatedHours: e.target.value }))}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>优先级</Label>
+                <Select
+                  value={editForm.priority}
+                  onValueChange={(v) =>
+                    v && setEditForm((f) => ({ ...f, priority: v as "normal" | "urgent" }))
+                  }
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="normal">常规</SelectItem>
+                    <SelectItem value="urgent">紧急</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>计划开始</Label>
+                <Input
+                  type="datetime-local"
+                  value={editForm.plannedStart}
+                  onChange={(e) => setEditForm((f) => ({ ...f, plannedStart: e.target.value }))}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>计划结束</Label>
+                <Input
+                  type="datetime-local"
+                  value={editForm.plannedEnd}
+                  onChange={(e) => setEditForm((f) => ({ ...f, plannedEnd: e.target.value }))}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl">
+              取消
+            </Button>
+            <Button disabled={acting} onClick={submitEdit} className="rounded-xl">
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

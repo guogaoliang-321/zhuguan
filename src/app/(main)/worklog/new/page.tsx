@@ -33,6 +33,14 @@ interface CategoryOption {
   name: string;
 }
 
+interface TaskOption {
+  id: string;
+  name: string;
+  status: string;
+  estimatedHours: number;
+  plannedEnd: string;
+}
+
 export default function NewWorklogPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -42,6 +50,8 @@ export default function NewWorklogPage() {
   const [projectId, setProjectId] = useState("");
   const [isNonProject, setIsNonProject] = useState(false);
   const [nonProjectCategoryId, setNonProjectCategoryId] = useState("");
+  const [taskId, setTaskId] = useState("");
+  const [tasks, setTasks] = useState<TaskOption[]>([]);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [hours, setHours] = useState("4");
   const [content, setContent] = useState("");
@@ -66,6 +76,8 @@ export default function NewWorklogPage() {
 
   function handleProjectChange(value: string | null) {
     if (!value) return;
+    setTaskId("");
+    setTasks([]);
     if (value === NON_PROJECT_VALUE) {
       setIsNonProject(true);
       setProjectId("");
@@ -74,6 +86,15 @@ export default function NewWorklogPage() {
       setIsNonProject(false);
       setProjectId(value);
       setNonProjectCategoryId("");
+      // 拉自己在该项目下的进行中/未开始任务
+      fetch(`/api/tasks?projectId=${value}&mine=1`)
+        .then((r) => r.json())
+        .then((data: TaskOption[]) =>
+          setTasks(
+            data.filter((t) => t.status === "pending" || t.status === "in_progress" || t.status === "overdue")
+          )
+        )
+        .catch(() => setTasks([]));
     }
   }
 
@@ -107,7 +128,14 @@ export default function NewWorklogPage() {
 
     const body = isNonProject
       ? { nonProjectCategoryId, date, hours: Number(hours), content }
-      : { projectId, category, date, hours: Number(hours), content };
+      : {
+          projectId,
+          category,
+          taskId: taskId || null,
+          date,
+          hours: Number(hours),
+          content,
+        };
 
     const res = await fetch("/api/worklogs", {
       method: "POST",
@@ -179,26 +207,61 @@ export default function NewWorklogPage() {
 
             {/* 工作类别（项目模式）或 非项目类别（非项目模式） */}
             {!isNonProject ? (
-              <div className="space-y-2">
-                <Label>工作类别 *</Label>
-                <Select value={category} onValueChange={(v) => v && setCategory(v)}>
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="选择类别" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl max-h-[300px]">
-                    {WORK_CATEGORY_GROUPS.map((group) => (
-                      <SelectGroup key={group}>
-                        <SelectLabel className="text-xs text-muted-foreground font-semibold">
-                          {group}
-                        </SelectLabel>
-                        {WORK_CATEGORIES.filter((c) => c.group === group).map((c) => (
-                          <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>
+              <>
+                <div className="space-y-2">
+                  <Label>工作类别 *</Label>
+                  <Select value={category} onValueChange={(v) => v && setCategory(v)}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="选择类别" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl max-h-[300px]">
+                      {WORK_CATEGORY_GROUPS.map((group) => (
+                        <SelectGroup key={group}>
+                          <SelectLabel className="text-xs text-muted-foreground font-semibold">
+                            {group}
+                          </SelectLabel>
+                          {WORK_CATEGORIES.filter((c) => c.group === group).map((c) => (
+                            <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 关联任务（可选）— 项目模式才显示 */}
+                {projectId && (
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      关联任务
+                      <span className="text-xs text-muted-foreground font-normal">
+                        （可选，挂上后预估 vs 实际工时会自动算）
+                      </span>
+                    </Label>
+                    <Select
+                      value={taskId || "__none__"}
+                      onValueChange={(v) => setTaskId(!v || v === "__none__" ? "" : v)}
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder="不关联具体任务" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="__none__">不关联具体任务</SelectItem>
+                        {tasks.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name}（预估 {Number(t.estimatedHours)}h）
+                          </SelectItem>
                         ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                      </SelectContent>
+                    </Select>
+                    {tasks.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        该项目下没有派给你的进行中任务
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="space-y-2">
                 <Label>非项目类别 *</Label>

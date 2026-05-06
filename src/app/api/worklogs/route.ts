@@ -19,6 +19,7 @@ const createWorklogSchema = z
   .object({
     projectId: z.string().optional(),
     nonProjectCategoryId: z.string().optional(),
+    taskId: z.string().optional().nullable(),
     date: z.string().min(1, "请选择日期"),
     hours: z.number().min(0.5, "工时至少0.5小时").max(24),
     content: z.string().min(1, "请填写工作内容"),
@@ -91,6 +92,18 @@ export async function POST(request: NextRequest) {
     if (!project) return notFound("项目不存在");
     if (!canCreateWorkLogFor(session.user, targetUserId, project))
       return forbidden();
+    // 关联任务校验：必须属于该项目，责任人必须是 targetUserId（ADMIN 例外）
+    if (data.taskId) {
+      const task = await prisma.task.findUnique({
+        where: { id: data.taskId },
+        select: { projectId: true, assigneeId: true },
+      });
+      if (!task) return notFound("关联任务不存在");
+      if (task.projectId !== data.projectId)
+        return badRequest("任务不属于该项目");
+      if (!isAdmin(session.user) && task.assigneeId !== targetUserId)
+        return badRequest("只能关联自己被派的任务");
+    }
   } else {
     // 非项目模式：只能给自己填（ADMIN 例外）
     if (targetUserId !== session.user.id && !isAdmin(session.user))
@@ -107,6 +120,7 @@ export async function POST(request: NextRequest) {
       userId: targetUserId,
       projectId: data.projectId ?? null,
       nonProjectCategoryId: data.nonProjectCategoryId ?? null,
+      taskId: data.taskId ?? null,
       date: new Date(data.date),
       hours: data.hours,
       content: data.content,

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import {
   Zap,
   CalendarClock,
   User as UserIcon,
+  Search,
 } from "lucide-react";
 
 interface TaskRow {
@@ -46,12 +48,25 @@ const STATUS_LABELS: Record<string, { text: string; cls: string }> = {
   overdue: { text: "已逾期", cls: "bg-red-100 text-red-700" },
 };
 
+type SortKey = "due" | "priority" | "hours";
+
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, normal: 1 };
+const STATUS_RANK: Record<string, number> = {
+  overdue: 0,
+  in_progress: 1,
+  pending: 2,
+  done: 3,
+};
+
 export default function TasksPage() {
   const { data: session } = useSession();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState<"mine" | "all">("mine");
   const [status, setStatus] = useState<string>("all");
+  const [keyword, setKeyword] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("due");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -72,6 +87,41 @@ export default function TasksPage() {
   const isPMOrAdmin =
     session?.user?.role === "ADMIN" || session?.user?.role === "PROJECT_LEAD";
 
+  // 责任人选项（来源于当前结果集）
+  const assigneeOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    tasks.forEach((t) => map.set(t.assignee.id, t.assignee.name));
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [tasks]);
+
+  // 客户端搜索 + 排序 + 责任人过滤
+  const visibleTasks = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    const filtered = tasks.filter((t) => {
+      if (assigneeFilter !== "all" && t.assignee.id !== assigneeFilter) return false;
+      if (!kw) return true;
+      const hay = `${t.name} ${t.project?.name ?? ""} ${t.assignee.name}`.toLowerCase();
+      return hay.includes(kw);
+    });
+    return filtered.sort((a, b) => {
+      // 优先按状态：逾期/进行中/未开始/已完成
+      const sa = STATUS_RANK[a.status] ?? 9;
+      const sb = STATUS_RANK[b.status] ?? 9;
+      if (sa !== sb) return sa - sb;
+      if (sortKey === "due") {
+        return new Date(a.plannedEnd).getTime() - new Date(b.plannedEnd).getTime();
+      }
+      if (sortKey === "priority") {
+        const pa = PRIORITY_RANK[a.priority] ?? 9;
+        const pb = PRIORITY_RANK[b.priority] ?? 9;
+        if (pa !== pb) return pa - pb;
+        return new Date(a.plannedEnd).getTime() - new Date(b.plannedEnd).getTime();
+      }
+      // hours: 工时降序
+      return Number(b.estimatedHours) - Number(a.estimatedHours);
+    });
+  }, [tasks, keyword, sortKey, assigneeFilter]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -90,8 +140,17 @@ export default function TasksPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="搜索任务名 / 项目"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            className="pl-9 rounded-xl bg-card border-0 shadow-soft h-10"
+          />
+        </div>
         <Select value={scope} onValueChange={(v) => v && setScope(v as "mine" | "all")}>
-          <SelectTrigger className="w-[160px] rounded-xl bg-card border-0 shadow-soft h-10">
+          <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
@@ -100,7 +159,7 @@ export default function TasksPage() {
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={(v) => v && setStatus(v)}>
-          <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
+          <SelectTrigger className="w-[120px] rounded-xl bg-card border-0 shadow-soft h-10">
             <SelectValue placeholder="全部状态" />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
@@ -111,6 +170,32 @@ export default function TasksPage() {
             <SelectItem value="overdue">已逾期</SelectItem>
           </SelectContent>
         </Select>
+        {scope === "all" && assigneeOptions.length > 0 && (
+          <Select value={assigneeFilter} onValueChange={(v) => v && setAssigneeFilter(v)}>
+            <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
+              <SelectValue placeholder="全部责任人" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl max-h-[300px]">
+              <SelectItem value="all">全部责任人</SelectItem>
+              {assigneeOptions.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select value={sortKey} onValueChange={(v) => v && setSortKey(v as SortKey)}>
+          <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="due">截止时间近</SelectItem>
+            <SelectItem value="priority">优先级</SelectItem>
+            <SelectItem value="hours">工时大</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="text-xs text-muted-foreground ml-auto">
+          {loading ? "" : `共 ${visibleTasks.length} 条`}
+        </div>
       </div>
 
       {loading ? (
@@ -119,15 +204,19 @@ export default function TasksPage() {
             <Skeleton key={i} className="h-24 rounded-2xl" />
           ))}
         </div>
-      ) : tasks.length === 0 ? (
+      ) : visibleTasks.length === 0 ? (
         <Card className="shadow-soft rounded-2xl">
           <CardContent className="py-16 text-center text-muted-foreground">
-            {scope === "mine" ? "暂无分配给你的任务" : "暂无任务"}
+            {keyword || assigneeFilter !== "all" || status !== "all"
+              ? "没有匹配的任务，试试换个关键词或筛选条件"
+              : scope === "mine"
+                ? "暂无分配给你的任务"
+                : "暂无任务"}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {tasks.map((t) => {
+          {visibleTasks.map((t) => {
             const sl = STATUS_LABELS[t.status] ?? STATUS_LABELS.pending;
             const overdue = t.status === "overdue";
             return (

@@ -35,6 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PHASE_LABELS, PHASE_OPTIONS } from "@/lib/constants";
 import type { DashboardProject, DashboardStats, DashboardMe, TrafficLight } from "@/app/api/dashboard/route";
+import { TodayTasksCard } from "@/components/dashboard/today-tasks-card";
 
 interface ActivityItem {
   id: string;
@@ -158,6 +159,9 @@ export default function DashboardPage() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">进度看板</h1>
         <p className="text-muted-foreground mt-1 text-sm sm:text-base">实时掌握全所项目进展</p>
       </div>
+
+      {/* 我的今日任务 */}
+      <TodayTasksCard />
 
       {/* 本周工时提醒 */}
       {me && !me.thisWeekFilled && (
