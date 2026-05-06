@@ -8,10 +8,11 @@ import {
   badRequest,
 } from "@/lib/api-utils";
 import {
-  canResolveAppeals,
+  canResolveAppeal,
   canViewAppeal,
   type SessionUser,
 } from "@/lib/permissions";
+import { writeAudit } from "@/lib/audit";
 import { z } from "zod";
 
 /** GET /api/appeals/[id] — 详情 */
@@ -32,9 +33,28 @@ export async function GET(
     },
   });
   if (!appeal) return notFound("申诉不存在");
-  if (!canViewAppeal(user, appeal)) return forbidden();
+
+  // 找申诉对象所属项目（用于 PM 权限判定）
+  const targetProject = await fetchTargetProject(appeal);
+  if (!canViewAppeal(user, appeal, targetProject ?? undefined)) {
+    return forbidden();
+  }
 
   return NextResponse.json(appeal);
+}
+
+async function fetchTargetProject(appeal: {
+  targetType: string;
+  targetId: string;
+}): Promise<{ leadId: string } | null> {
+  if (appeal.targetType === "task" || appeal.targetType === "task_status") {
+    const t = await prisma.task.findUnique({
+      where: { id: appeal.targetId },
+      select: { project: { select: { leadId: true } } },
+    });
+    return t?.project ?? null;
+  }
+  return null;
 }
 
 const resolveSchema = z.object({
@@ -50,7 +70,6 @@ export async function PATCH(
   const session = await getSession();
   if (!session) return unauthorized();
   const user = session.user as SessionUser;
-  if (!canResolveAppeals(user)) return forbidden();
 
   const { id } = await params;
   const body = await request.json();
@@ -59,11 +78,16 @@ export async function PATCH(
 
   const existing = await prisma.appeal.findUnique({
     where: { id },
-    select: { authorId: true, status: true },
+    select: { authorId: true, status: true, targetType: true, targetId: true },
   });
   if (!existing) return notFound("申诉不存在");
   if (existing.status !== "pending") {
     return badRequest("该申诉已处理");
+  }
+
+  const targetProject = await fetchTargetProject(existing);
+  if (!canResolveAppeal(user, existing, targetProject ?? undefined)) {
+    return forbidden();
   }
 
   const updated = await prisma.appeal.update({
@@ -87,6 +111,16 @@ export async function PATCH(
       linkId: id,
       payload: { appealId: id, status: parsed.data.status },
     },
+  });
+
+  await writeAudit({
+    actorId: user.id,
+    action: "appeal_resolve",
+    targetType: "appeal",
+    targetId: id,
+    before: { status: "pending" },
+    after: { status: parsed.data.status, resolution: parsed.data.resolution },
+    meta: { authorId: existing.authorId, targetType: existing.targetType },
   });
 
   return NextResponse.json(updated);

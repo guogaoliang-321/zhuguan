@@ -61,6 +61,7 @@ model User {
   notifications        Notification[]
   appeals              Appeal[]             @relation("AppealAuthor")
   resolvedAppeals      Appeal[]             @relation("AppealResolver")
+  auditLogs            AuditLog[]
 
   @@map("users")
 }
@@ -273,6 +274,29 @@ model Appeal {
   @@index([authorId])
   @@index([status])
   @@map("appeals")
+}
+
+/// 审计日志：ADMIN/PM 对敏感数据的修改全部留痕
+/// action 取值约定：user_anonymize | user_role_change | user_password_reset
+///                  | project_delete | task_force_change | worklog_admin_edit
+///                  | appeal_resolve | credentials_setup | data_purge | misc
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String
+  targetType String?
+  targetId   String?
+  before     Json?
+  after      Json?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
 }
 
 /// 任务状态变更历史（插队 / 延期 / 完成 / PM 处理措施全部留痕）

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, forbidden } from "@/lib/api-utils";
-import { canViewAllWeekly } from "@/lib/permissions";
+import { getSession, unauthorized } from "@/lib/api-utils";
+import {
+  canViewWeeklyBoard,
+  isAdmin,
+  isProjectLead,
+} from "@/lib/permissions";
 import { startOfWeek, endOfWeek } from "date-fns";
 
 export interface WeeklyEntry {
@@ -21,17 +25,34 @@ export interface WeeklyEntry {
 export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
+  if (!canViewWeeklyBoard(session.user)) return unauthorized();
 
-  // TODO 阶段4: PROJECT_LEAD 可看自己负责项目成员的周报；当前仅 ADMIN
-  if (!canViewAllWeekly(session.user)) return forbidden();
-
+  const me = session.user;
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
 
+  // 计算可见用户范围
+  // ADMIN：全部
+  // PM：自己 + 自己负责项目里的所有成员
+  // MEMBER：仅自己（队友周报隐去明细，避免暴露工时内容）
+  let visibleUserIds: Set<string> | null = null;
+  if (!isAdmin(me)) {
+    const ids = new Set<string>([me.id]);
+    if (isProjectLead(me)) {
+      const ledProjects = await prisma.project.findMany({
+        where: { leadId: me.id },
+        select: { members: { select: { userId: true } } },
+      });
+      for (const p of ledProjects) for (const m of p.members) ids.add(m.userId);
+    }
+    visibleUserIds = ids;
+  }
+
   const logs = await prisma.workLog.findMany({
     where: {
       date: { gte: weekStart, lte: weekEnd },
+      ...(visibleUserIds ? { userId: { in: [...visibleUserIds] } } : {}),
     },
     include: {
       user: { select: { id: true, name: true } },

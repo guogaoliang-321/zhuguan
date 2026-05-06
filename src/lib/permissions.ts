@@ -220,16 +220,27 @@ export function workLogVisibilityFilter(
 }
 
 // ========== 工作量看板 ==========
+// 设计原则：所有人都能进入「人员看板」，但 scope 不同
+//   ADMIN：全员
+//   PROJECT_LEAD：自己负责项目里的所有成员（含跨项目工时聚合）
+//   MEMBER：自己 + 同项目队友（仅周/月聚合饱和度，不暴露明细工时）
+
+/** 任何已登录用户都可以进入人员看板（实际数据范围由 API scope 决定） */
+export function canViewWorkloadBoard(_u: SessionUser): boolean {
+  return true;
+}
 
 export function canViewAllWorkload(u: SessionUser): boolean {
   return isAdmin(u);
 }
 
 /**
- * 是否可以查看指定用户的工作量
+ * 是否可以查看指定用户的工作量明细（含 WorkLog 数字）
  * - ADMIN: 任何人
  * - PROJECT_LEAD: 自己负责项目的成员（调用方需先查出共享项目列表）
  * - 本人：看自己
+ *
+ * MEMBER 看队友只能看聚合饱和度（不走这个函数，走 board 接口里的 aggregate-only 模式）
  */
 export function canViewUserWorkload(
   u: SessionUser,
@@ -243,6 +254,11 @@ export function canViewUserWorkload(
 }
 
 // ========== 周报 ==========
+
+/** 任何已登录用户都可以进入周报页（数据范围由 API scope 决定） */
+export function canViewWeeklyBoard(_u: SessionUser): boolean {
+  return true;
+}
 
 export function canViewAllWeekly(u: SessionUser): boolean {
   return isAdmin(u);
@@ -393,26 +409,50 @@ export function taskVisibilityFilter(
 
 /**
  * 团队负荷热力图访问权限
- * - ADMIN / PROJECT_LEAD 可查看
+ * - 全员可看（聚合数据，不暴露明细）
+ *   · ADMIN / PROJECT_LEAD 看全部成员
+ *   · MEMBER 仅看自己所在项目里的成员
+ *   实际 scope 由 /api/tasks/heatmap 决定
  */
-export function canViewTeamHeatmap(u: SessionUser): boolean {
-  return isAdmin(u) || isProjectLead(u);
+export function canViewTeamHeatmap(_u: SessionUser): boolean {
+  return true;
 }
 
 // ========== 申诉（Phase 2） ==========
 
-/** 谁可以处理申诉：仅 ADMIN */
+/** 进入申诉处理页：ADMIN 或 PROJECT_LEAD（PM 只能处理自己项目相关的申诉） */
 export function canResolveAppeals(u: SessionUser): boolean {
-  return isAdmin(u);
+  return isAdmin(u) || isProjectLead(u);
 }
 
-/** 申诉可见性：本人 + ADMIN */
-export function canViewAppeal(
+/**
+ * 是否可以处理具体某条申诉
+ * - ADMIN：全部
+ * - PROJECT_LEAD：申诉对象是自己负责项目下的 task（需调用方提供 targetProject）
+ */
+export function canResolveAppeal(
   u: SessionUser,
-  appeal: { authorId: string }
+  appeal: { targetType: string },
+  targetProject?: ProjectCtx
 ): boolean {
   if (isAdmin(u)) return true;
-  return appeal.authorId === u.id;
+  if (!isProjectLead(u)) return false;
+  if (!targetProject) return false;
+  if (appeal.targetType === "task" || appeal.targetType === "task_status") {
+    return isLeadOf(u, targetProject);
+  }
+  return false;
+}
+
+/** 申诉可见性：本人 + ADMIN + 相关项目的 PM */
+export function canViewAppeal(
+  u: SessionUser,
+  appeal: { authorId: string; targetType: string },
+  targetProject?: ProjectCtx
+): boolean {
+  if (isAdmin(u)) return true;
+  if (appeal.authorId === u.id) return true;
+  return canResolveAppeal(u, appeal, targetProject);
 }
 
 /** 任何登录用户都可以提交申诉 */

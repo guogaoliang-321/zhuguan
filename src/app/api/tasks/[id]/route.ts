@@ -14,6 +14,7 @@ import {
   type SessionUser,
 } from "@/lib/permissions";
 import { refreshOverdueTasks, logStatusChange } from "@/lib/task-helpers";
+import { writeAudit } from "@/lib/audit";
 import { z } from "zod";
 
 const updateTaskSchema = z.object({
@@ -146,6 +147,20 @@ export async function DELETE(
       changedById: user.id,
     });
     await tx.task.delete({ where: { id } });
+  });
+
+  await writeAudit({
+    actorId: user.id,
+    action: "task_delete",
+    targetType: "task",
+    targetId: id,
+    before: {
+      name: task.name,
+      status: task.status,
+      assigneeId: task.assigneeId,
+      projectId: task.projectId,
+      estimatedHours: Number(task.estimatedHours),
+    },
   });
 
   return NextResponse.json({ ok: true });

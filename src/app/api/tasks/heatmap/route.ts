@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, forbidden } from "@/lib/api-utils";
-import { canViewTeamHeatmap, type SessionUser } from "@/lib/permissions";
+import { getSession, unauthorized } from "@/lib/api-utils";
+import {
+  canViewTeamHeatmap,
+  isAdmin,
+  isProjectLead,
+  type SessionUser,
+} from "@/lib/permissions";
 import { refreshOverdueTasks } from "@/lib/task-helpers";
 
 /**
@@ -14,9 +19,35 @@ export async function GET(request: NextRequest) {
   const session = await getSession();
   if (!session) return unauthorized();
   const user = session.user as SessionUser;
-  if (!canViewTeamHeatmap(user)) return forbidden();
+  if (!canViewTeamHeatmap(user)) return unauthorized();
 
   await refreshOverdueTasks();
+
+  // 可见用户范围
+  // ADMIN：全部
+  // PM：自己 + 自己负责项目的所有成员
+  // MEMBER：自己 + 同项目队友（覆盖整个所在项目人员）
+  let visibleUserIds: Set<string> | null = null;
+  if (!isAdmin(user)) {
+    const ids = new Set<string>([user.id]);
+    if (isProjectLead(user)) {
+      const ledProjects = await prisma.project.findMany({
+        where: { leadId: user.id },
+        select: { members: { select: { userId: true } } },
+      });
+      for (const p of ledProjects) for (const m of p.members) ids.add(m.userId);
+    } else {
+      const projects = await prisma.project.findMany({
+        where: { members: { some: { userId: user.id } } },
+        select: { leadId: true, members: { select: { userId: true } } },
+      });
+      for (const p of projects) {
+        ids.add(p.leadId);
+        for (const m of p.members) ids.add(m.userId);
+      }
+    }
+    visibleUserIds = ids;
+  }
 
   const weeks = Math.max(1, Math.min(12, Number(request.nextUrl.searchParams.get("weeks") ?? 4)));
 
@@ -36,6 +67,7 @@ export async function GET(request: NextRequest) {
       plannedStart: { lt: horizonEnd },
       plannedEnd: { gt: monday },
       status: { in: ["pending", "in_progress", "overdue"] },
+      ...(visibleUserIds ? { assigneeId: { in: [...visibleUserIds] } } : {}),
     },
     include: {
       assignee: {

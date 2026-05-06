@@ -39,6 +39,7 @@ import {
   Pencil,
   UserX,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -156,6 +157,12 @@ export default function UsersPage() {
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deactivatingUser, setDeactivatingUser] = useState<User | null>(null);
   const [deactivateLoading, setDeactivateLoading] = useState(false);
+
+  // 匿名化（离职清退）
+  const [anonymizeOpen, setAnonymizeOpen] = useState(false);
+  const [anonymizingUser, setAnonymizingUser] = useState<User | null>(null);
+  const [anonymizeLoading, setAnonymizeLoading] = useState(false);
+  const [anonymizeConfirm, setAnonymizeConfirm] = useState("");
 
   // 导入弹窗
   const [importOpen, setImportOpen] = useState(false);
@@ -295,6 +302,37 @@ export default function UsersPage() {
   function openDeactivate(user: User) {
     setDeactivatingUser(user);
     setDeactivateOpen(true);
+  }
+
+  // ====== 匿名化（离职清退） ======
+
+  function openAnonymize(user: User) {
+    setAnonymizingUser(user);
+    setAnonymizeConfirm("");
+    setAnonymizeOpen(true);
+  }
+
+  async function handleAnonymize() {
+    if (!anonymizingUser) return;
+    setAnonymizeLoading(true);
+    try {
+      const res = await fetch(
+        `/api/admin/users/${anonymizingUser.id}/anonymize`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error ?? "匿名化失败");
+        return;
+      }
+      toast.success(`${anonymizingUser.name} 已离职清退`);
+      setAnonymizeOpen(false);
+      fetchUsers();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setAnonymizeLoading(false);
+    }
   }
 
   async function handleDeactivate() {
@@ -564,10 +602,19 @@ export default function UsersPage() {
                       variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0 rounded-lg hover:bg-destructive/10 hover:text-destructive"
-                      title="停用"
+                      title="停用（保留数据，仅禁登录）"
                       onClick={() => openDeactivate(user)}
                     >
                       <UserX className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 rounded-lg hover:bg-destructive/10 hover:text-destructive"
+                      title="离职匿名化（清空身份证/手机/部门，不可逆）"
+                      onClick={() => openAnonymize(user)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </TableCell>
@@ -861,6 +908,68 @@ export default function UsersPage() {
               disabled={deactivateLoading}
             >
               {deactivateLoading ? "停用中..." : "确认停用"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 离职匿名化弹窗 */}
+      <Dialog open={anonymizeOpen} onOpenChange={setAnonymizeOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              离职清退（不可逆）
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-3 text-sm space-y-3">
+            <p>
+              即将清退{" "}
+              <span className="font-semibold text-foreground">
+                {anonymizingUser?.name}
+              </span>{" "}
+              。此操作会：
+            </p>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground text-xs">
+              <li>清空身份证号、手机、部门、职位、头像</li>
+              <li>停用账号（无法登录）</li>
+              <li>用户名改为匿名标记，避免与新人重名</li>
+              <li>历史任务/工时归属保留（仅显示姓名）</li>
+            </ul>
+            <p className="text-xs text-destructive">
+              此操作<strong>不可恢复</strong>。如只是临时停用、未来可能复职，请用「停用」按钮。
+            </p>
+            <div className="space-y-2 pt-2">
+              <Label className="text-xs">
+                请输入「{anonymizingUser?.name}」确认操作
+              </Label>
+              <Input
+                value={anonymizeConfirm}
+                onChange={(e) => setAnonymizeConfirm(e.target.value)}
+                placeholder={anonymizingUser?.name ?? ""}
+                className="rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => setAnonymizeOpen(false)}
+              disabled={anonymizeLoading}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl"
+              onClick={handleAnonymize}
+              disabled={
+                anonymizeLoading ||
+                anonymizeConfirm.trim() !== anonymizingUser?.name
+              }
+            >
+              {anonymizeLoading ? "处理中..." : "确认清退"}
             </Button>
           </DialogFooter>
         </DialogContent>

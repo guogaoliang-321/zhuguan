@@ -43,11 +43,12 @@ export const authConfig: NextAuthConfig = {
         return false; // 重定向到登录页
       }
 
-      // ADMIN 路由保护
-      if (
-        nextUrl.pathname.startsWith("/admin") &&
-        auth?.user?.role !== "ADMIN"
-      ) {
+      // ADMIN-only 路由保护（其余 /admin/* 子路径放给所有登录用户，由页面 + API 自行判 scope）
+      const ADMIN_ONLY_PATHS = ["/admin/users", "/admin/audit-logs"];
+      const isAdminOnly = ADMIN_ONLY_PATHS.some((p) =>
+        nextUrl.pathname.startsWith(p)
+      );
+      if (isAdminOnly && auth?.user?.role !== "ADMIN") {
         return Response.redirect(new URL("/dashboard", nextUrl));
       }
 

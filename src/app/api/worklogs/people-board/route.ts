@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, unauthorized, forbidden } from "@/lib/api-utils";
-import { canViewAllWorkload } from "@/lib/permissions";
+import { getSession, unauthorized } from "@/lib/api-utils";
+import {
+  canViewWorkloadBoard,
+  isAdmin,
+  isProjectLead,
+} from "@/lib/permissions";
 import {
   startOfWeek,
   endOfWeek,
@@ -124,9 +128,41 @@ function resolveRange(
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return unauthorized();
+  if (!canViewWorkloadBoard(session.user)) return unauthorized();
 
-  // TODO 阶段6 可扩展 PROJECT_LEAD 看下属：当前仅 ADMIN
-  if (!canViewAllWorkload(session.user)) return forbidden();
+  const me = session.user;
+  const role: "admin" | "pm" | "member" = isAdmin(me)
+    ? "admin"
+    : isProjectLead(me)
+      ? "pm"
+      : "member";
+
+  // 计算可见用户范围
+  // ADMIN：全部 isActive
+  // PM：自己 + 自己负责项目里的所有成员
+  // MEMBER：自己 + 同项目队友（项目里至少一个共同成员）
+  let visibleUserIds: Set<string> | null = null;
+  if (role !== "admin") {
+    const ids = new Set<string>([me.id]);
+    if (role === "pm") {
+      const ledProjects = await prisma.project.findMany({
+        where: { leadId: me.id },
+        select: { members: { select: { userId: true } } },
+      });
+      for (const p of ledProjects) for (const m of p.members) ids.add(m.userId);
+    } else {
+      // MEMBER：所有自己参与的项目里的成员（含 lead）
+      const projects = await prisma.project.findMany({
+        where: { members: { some: { userId: me.id } } },
+        select: { leadId: true, members: { select: { userId: true } } },
+      });
+      for (const p of projects) {
+        ids.add(p.leadId);
+        for (const m of p.members) ids.add(m.userId);
+      }
+    }
+    visibleUserIds = ids;
+  }
 
   const params = req.nextUrl.searchParams;
   const { from, to, preset } = resolveRange(
@@ -146,7 +182,10 @@ export async function GET(req: NextRequest) {
   const logTo = to > thisWeekEnd ? to : thisWeekEnd;
 
   const users = await prisma.user.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(visibleUserIds ? { id: { in: [...visibleUserIds] } } : {}),
+    },
     select: {
       id: true,
       name: true,
@@ -347,11 +386,27 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  // MEMBER 模式：除自己外，仅保留聚合饱和度，剥离 WorkLog 明细
+  const sanitizedItems =
+    role === "member"
+      ? items.map((it) =>
+          it.userId === me.id
+            ? it
+            : {
+                ...it,
+                lastWeekLogs: [],
+                thisWeekLogs: [],
+                rangeLogs: [],
+                byCategory: [],
+              }
+        )
+      : items;
+
   const response: PeopleBoardResponse = {
     rangePreset: preset,
     from: from.toISOString(),
     to: to.toISOString(),
-    items,
+    items: sanitizedItems,
   };
 
   return NextResponse.json(response);

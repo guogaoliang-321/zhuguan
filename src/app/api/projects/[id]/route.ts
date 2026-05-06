@@ -12,6 +12,7 @@ import {
   canEditProject,
   canDeleteProject,
 } from "@/lib/permissions";
+import { writeAudit } from "@/lib/audit";
 import { z } from "zod";
 
 const updateProjectSchema = z.object({
@@ -128,6 +129,20 @@ export async function DELETE(
   if (!existing) return notFound("项目不存在");
 
   await prisma.project.delete({ where: { id } });
+
+  await writeAudit({
+    actorId: session.user.id,
+    action: "project_delete",
+    targetType: "project",
+    targetId: id,
+    before: {
+      name: existing.name,
+      contractNo: existing.contractNo,
+      clientName: existing.clientName,
+      phase: existing.phase,
+      leadId: existing.leadId,
+    },
+  });
 
   return NextResponse.json({ success: true });
 }

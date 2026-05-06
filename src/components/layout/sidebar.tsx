@@ -18,6 +18,7 @@ import {
   Activity,
   Bell,
   MessageSquareWarning,
+  Shield,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -79,34 +80,38 @@ const navItems: NavItem[] = [
     label: "团队热力图",
     href: "/admin/heatmap",
     icon: Activity,
-    section: "admin",
-    pmOnly: true,
+    section: "team",
   },
   {
     label: "人员看板",
     href: "/admin/workload",
     icon: BarChart3,
-    section: "admin",
-    adminOnly: true,
+    section: "team",
   },
   {
     label: "周报汇总",
     href: "/admin/weekly",
     icon: FileText,
-    section: "admin",
-    adminOnly: true,
+    section: "team",
   },
   {
     label: "申诉处理",
     href: "/admin/appeals",
     icon: MessageSquareWarning,
-    section: "admin",
-    adminOnly: true,
+    section: "team",
+    pmOnly: true,
   },
   {
     label: "用户管理",
     href: "/admin/users",
     icon: Users,
+    section: "admin",
+    adminOnly: true,
+  },
+  {
+    label: "审计日志",
+    href: "/admin/audit-logs",
+    icon: Shield,
     section: "admin",
     adminOnly: true,
   },
@@ -127,6 +132,7 @@ const navItems: NavItem[] = [
 const sectionLabels: Record<string, string> = {
   overview: "OVERVIEW",
   workspace: "WORKSPACE",
+  team: "TEAM",
   admin: "ADMIN",
   account: "ACCOUNT",
 };
@@ -160,6 +166,7 @@ const MOBILE_SHEET_ONLY = new Set([
 // 「我的」Sheet 里的分组标题
 const SHEET_SECTION_LABELS: Record<string, string> = {
   workspace: "个人",
+  team: "团队",
   admin: "管理",
   account: "账号",
 };

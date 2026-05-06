@@ -7,8 +7,8 @@ import {
 } from "@/lib/api-utils";
 import {
   canCreateAppeal,
-  canResolveAppeals,
   isAdmin,
+  isProjectLead,
   type SessionUser,
 } from "@/lib/permissions";
 import { z } from "zod";
@@ -31,9 +31,30 @@ export async function GET(request: NextRequest) {
 
   const sp = request.nextUrl.searchParams;
   const status = sp.get("status");
+
+  // 可见范围：
+  // ADMIN：全部
+  // PROJECT_LEAD：自己提交的 + 自己负责项目下任务的申诉
+  // MEMBER：仅自己提交的
+  const orClauses: Record<string, unknown>[] = [{ authorId: user.id }];
+  if (isAdmin(user)) {
+    orClauses.length = 0; // ADMIN 不限制
+  } else if (isProjectLead(user)) {
+    const ledTaskIds = await prisma.task.findMany({
+      where: { project: { leadId: user.id } },
+      select: { id: true },
+    });
+    if (ledTaskIds.length > 0) {
+      orClauses.push({
+        targetType: { in: ["task", "task_status"] },
+        targetId: { in: ledTaskIds.map((t) => t.id) },
+      });
+    }
+  }
+
   const where: Record<string, unknown> = {};
   if (status) where.status = status;
-  if (!isAdmin(user)) where.authorId = user.id;
+  if (orClauses.length > 0) where.OR = orClauses;
 
   const items = await prisma.appeal.findMany({
     where,
@@ -59,10 +80,15 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return badRequest(parsed.error.issues[0].message);
   const data = parsed.data;
 
-  // 校验目标存在性（防止瞎填 ID）
+  // 校验目标存在性（防止瞎填 ID），同时找 PM 用于后续通知
+  let projectLeadId: string | null = null;
   if (data.targetType === "task") {
-    const t = await prisma.task.findUnique({ where: { id: data.targetId } });
+    const t = await prisma.task.findUnique({
+      where: { id: data.targetId },
+      select: { project: { select: { leadId: true } } },
+    });
     if (!t) return badRequest("申诉目标任务不存在");
+    projectLeadId = t.project?.leadId ?? null;
   } else if (data.targetType === "worklog") {
     const w = await prisma.workLog.findUnique({ where: { id: data.targetId } });
     if (!w) return badRequest("申诉目标工时不存在");
@@ -78,14 +104,17 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // 通知所有 ADMIN
+  // 通知所有 ADMIN，外加该项目 lead（如有）
   const admins = await prisma.user.findMany({
     where: { role: "ADMIN", isActive: true },
     select: { id: true },
   });
+  const recipients = new Set<string>(admins.map((a) => a.id));
+  if (projectLeadId && projectLeadId !== user.id) recipients.add(projectLeadId);
+
   await prisma.notification.createMany({
-    data: admins.map((a) => ({
-      userId: a.id,
+    data: [...recipients].map((rid) => ({
+      userId: rid,
       type: "appeal_new",
       title: "新申诉待处理",
       message: `${session.user.name} 对${data.targetType === "task" ? "任务" : data.targetType === "worklog" ? "工时" : "数据"}提出申诉`,
@@ -98,5 +127,3 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(appeal, { status: 201 });
 }
 
-// 临时支持 canResolveAppeals 在测试时编译通过
-void canResolveAppeals;

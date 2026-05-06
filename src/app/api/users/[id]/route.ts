@@ -8,6 +8,7 @@ import {
   badRequest,
 } from "@/lib/api-utils";
 import { canManageUsers, isAdmin } from "@/lib/permissions";
+import { writeAudit } from "@/lib/audit";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -85,11 +86,43 @@ export async function PUT(
     updateData.password = await bcrypt.hash(password, 10);
   }
 
+  // 取审计前镜像（仅当 role/password 变化或 ADMIN 改他人时记）
+  const before = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true, isActive: true },
+  });
+
   const user = await prisma.user.update({
     where: { id },
     data: updateData,
     select: { id: true, name: true, username: true, role: true, specialty: true },
   });
+
+  // 写审计：role 变更
+  if (
+    canManageUsers(session.user) &&
+    role !== undefined &&
+    before &&
+    before.role !== role
+  ) {
+    await writeAudit({
+      actorId: session.user.id,
+      action: "user_role_change",
+      targetType: "user",
+      targetId: id,
+      before: { role: before.role },
+      after: { role },
+    });
+  }
+  // 写审计：ADMIN 重置他人密码
+  if (password && !isSelf && canManageUsers(session.user)) {
+    await writeAudit({
+      actorId: session.user.id,
+      action: "user_password_reset",
+      targetType: "user",
+      targetId: id,
+    });
+  }
 
   return NextResponse.json(user);
 }
