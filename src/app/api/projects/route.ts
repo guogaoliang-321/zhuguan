@@ -48,12 +48,22 @@ export async function GET(request: NextRequest) {
   }
 
   const where = { AND: [visibility, filters] };
+  const wantMembers = searchParams.get("include") === "members";
 
   const projects = await prisma.project.findMany({
     where,
     include: {
-      lead: { select: { id: true, name: true } },
+      lead: { select: { id: true, name: true, specialty: true } },
       _count: { select: { milestones: true, members: true } },
+      ...(wantMembers
+        ? {
+            members: {
+              include: {
+                user: { select: { id: true, name: true, specialty: true } },
+              },
+            },
+          }
+        : {}),
     },
     orderBy: { updatedAt: "desc" },
   });
