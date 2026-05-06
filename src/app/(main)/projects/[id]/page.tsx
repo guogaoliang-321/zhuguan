@@ -466,7 +466,9 @@ function MilestonesTab({
                   <Label>所属阶段</Label>
                   <Select value={msPhase} onValueChange={(v) => v && setMsPhase(v)}>
                     <SelectTrigger className="rounded-xl">
-                      <SelectValue />
+                      <SelectValue>
+                        {PHASE_OPTIONS.find((o) => o.value === msPhase)?.label ?? msPhase}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       {PHASE_OPTIONS.map((o) => (
@@ -491,7 +493,11 @@ function MilestonesTab({
                 <Label>负责人</Label>
                 <Select value={assigneeId} onValueChange={(v) => v && setAssigneeId(v)}>
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="选择负责人" />
+                    <SelectValue placeholder="选择负责人">
+                      {assigneeId
+                        ? (users.find((u) => u.id === assigneeId)?.name ?? "选择负责人")
+                        : "选择负责人"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {users.map((u) => (

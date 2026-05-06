@@ -176,7 +176,7 @@ export default function NewWorklogPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-2xl">
+      <form onSubmit={handleSubmit} className="max-w-2xl" noValidate>
         <Card className="shadow-soft rounded-2xl">
           <CardHeader>
             <CardTitle className="text-base">工作信息</CardTitle>

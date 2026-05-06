@@ -14,7 +14,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowLeft, Save, Zap } from "lucide-react";
@@ -125,7 +125,7 @@ export default function NewTaskPage() {
       <h1 className="text-3xl font-bold tracking-tight mb-1">新建任务</h1>
       <p className="text-muted-foreground mb-8">三步搞定：项目 → 任务详情 → 工时与时间</p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         {/* Step 1 */}
         <Card className="shadow-soft rounded-2xl">
           <CardHeader>
@@ -134,7 +134,14 @@ export default function NewTaskPage() {
           <CardContent>
             <Select value={projectId || "__none__"} onValueChange={(v) => setProjectId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="选择项目" />
+                <SelectValueLabeled
+                  value={projectId || "__none__"}
+                  items={[
+                    { value: "__none__", label: "非项目任务" },
+                    ...projects.map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                  placeholder="选择项目"
+                />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 <SelectItem value="__none__">非项目任务</SelectItem>
@@ -182,7 +189,14 @@ export default function NewTaskPage() {
                 <Label>专业</Label>
                 <Select value={specialty || "__any__"} onValueChange={(v) => setSpecialty(!v || v === "__any__" ? "" : v)}>
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="不指定" />
+                    <SelectValueLabeled
+                      value={specialty || "__any__"}
+                      items={[
+                        { value: "__any__", label: "不指定" },
+                        ...SPECIALTIES.map((s) => ({ value: s, label: s })),
+                      ]}
+                      placeholder="不指定"
+                    />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     <SelectItem value="__any__">不指定</SelectItem>
@@ -196,7 +210,14 @@ export default function NewTaskPage() {
                 <Label>责任人 *</Label>
                 <Select value={assigneeId} onValueChange={(v) => setAssigneeId(v ?? "")} disabled={!projectId}>
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder={projectId ? "选择责任人" : "先选项目"} />
+                    <SelectValueLabeled
+                      value={assigneeId}
+                      items={memberOptions.map((u) => ({
+                        value: u.id,
+                        label: `${u.name}${u.specialty ? `（${u.specialty}）` : ""}`,
+                      }))}
+                      placeholder={projectId ? "选择责任人" : "先选项目"}
+                    />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {memberOptions.map((u) => (
@@ -214,7 +235,13 @@ export default function NewTaskPage() {
                 <Label>优先级</Label>
                 <Select value={priority} onValueChange={(v) => v && setPriority(v as "normal" | "urgent")}>
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue />
+                    <SelectValueLabeled
+                      value={priority}
+                      items={[
+                        { value: "normal", label: "常规" },
+                        { value: "urgent", label: "紧急" },
+                      ]}
+                    />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     <SelectItem value="normal">常规</SelectItem>

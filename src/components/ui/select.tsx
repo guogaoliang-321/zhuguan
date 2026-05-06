@@ -28,6 +28,38 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   )
 }
 
+/**
+ * SelectValueLabeled —— 解决 base-ui Select.Value 无 children 时显示原始 value
+ * （如 enum 的英文值 / cuid）的问题。
+ *
+ * 用法：
+ *   <SelectValueLabeled value={data.phase} items={PHASE_OPTIONS} placeholder="..." />
+ *   <SelectValueLabeled value={leadId} items={users.map(u => ({ value: u.id, label: u.name }))} />
+ */
+interface SelectOption {
+  value: string
+  label: string
+}
+
+function SelectValueLabeled({
+  value,
+  items,
+  placeholder,
+  className,
+}: {
+  value: string | null | undefined
+  items: SelectOption[]
+  placeholder?: string
+  className?: string
+}) {
+  const matched = value ? items.find((i) => i.value === value) : null
+  return (
+    <SelectValue placeholder={placeholder} className={className}>
+      {matched ? matched.label : (placeholder ?? "")}
+    </SelectValue>
+  )
+}
+
 function SelectTrigger({
   className,
   size = "default",
@@ -198,4 +230,5 @@ export {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
+  SelectValueLabeled,
 }

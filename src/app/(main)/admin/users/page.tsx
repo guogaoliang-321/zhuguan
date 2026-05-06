@@ -22,6 +22,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import {
   Table,
@@ -686,7 +687,7 @@ export default function UsersPage() {
                   }
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue />
+                    <SelectValueLabeled value={createForm.role} items={ROLES} />
                   </SelectTrigger>
                   <SelectContent>
                     {ROLES.map((r) => (
@@ -706,7 +707,11 @@ export default function UsersPage() {
                   }
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="选择专业" />
+                    <SelectValueLabeled
+                      value={createForm.specialty}
+                      items={SPECIALTIES.map((s) => ({ value: s, label: s }))}
+                      placeholder="选择专业"
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {SPECIALTIES.map((s) => (
@@ -796,7 +801,7 @@ export default function UsersPage() {
                   onValueChange={(v) => setEditForm({ ...editForm, role: v ?? editForm.role })}
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue />
+                    <SelectValueLabeled value={editForm.role} items={ROLES} />
                   </SelectTrigger>
                   <SelectContent>
                     {ROLES.map((r) => (
@@ -816,7 +821,11 @@ export default function UsersPage() {
                   }
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="选择专业" />
+                    <SelectValueLabeled
+                      value={editForm.specialty}
+                      items={SPECIALTIES.map((s) => ({ value: s, label: s }))}
+                      placeholder="选择专业"
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {SPECIALTIES.map((s) => (
