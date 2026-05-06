@@ -147,7 +147,7 @@ export function ProjectForm({ initialData, isEdit }: ProjectFormProps) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid gap-6 max-w-4xl">
           {/* 基本信息 */}
           <Card className="shadow-soft rounded-2xl">
@@ -275,7 +275,9 @@ export function ProjectForm({ initialData, isEdit }: ProjectFormProps) {
                   onValueChange={(v) => v && update("phase", v)}
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue />
+                    <SelectValue>
+                      {PHASE_OPTIONS.find((o) => o.value === data.phase)?.label ?? data.phase}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {PHASE_OPTIONS.map((o) => (
@@ -293,7 +295,9 @@ export function ProjectForm({ initialData, isEdit }: ProjectFormProps) {
                   onValueChange={(v) => v && update("status", v)}
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue />
+                    <SelectValue>
+                      {STATUS_OPTIONS.find((o) => o.value === data.status)?.label ?? data.status}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {STATUS_OPTIONS.map((o) => (
@@ -311,7 +315,16 @@ export function ProjectForm({ initialData, isEdit }: ProjectFormProps) {
                   onValueChange={(v) => v && update("leadId", v)}
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="选择负责人" />
+                    <SelectValue placeholder="选择负责人">
+                      {data.leadId
+                        ? (() => {
+                            const u = users.find((x) => x.id === data.leadId);
+                            return u
+                              ? `${u.name}${u.position ? ` · ${u.position}` : ""}`
+                              : "选择负责人";
+                          })()
+                        : "选择负责人"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {users.map((u) => (
