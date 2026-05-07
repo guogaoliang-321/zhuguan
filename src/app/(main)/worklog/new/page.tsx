@@ -15,7 +15,7 @@ import {
   SelectLabel,
   SelectSeparator,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Save } from "lucide-react";
@@ -191,7 +191,14 @@ export default function NewWorklogPage() {
                 onValueChange={handleProjectChange}
               >
                 <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="选择项目" />
+                  <SelectValueLabeled
+                    value={isNonProject ? NON_PROJECT_VALUE : projectId}
+                    items={[
+                      ...projects.map((p) => ({ value: p.id, label: p.name })),
+                      { value: NON_PROJECT_VALUE, label: "非项目任务" },
+                    ]}
+                    placeholder="选择项目"
+                  />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
                   {projects.map((p) => (
@@ -212,7 +219,14 @@ export default function NewWorklogPage() {
                   <Label>工作类别 *</Label>
                   <Select value={category} onValueChange={(v) => v && setCategory(v)}>
                     <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="选择类别" />
+                      <SelectValueLabeled
+                        value={category}
+                        items={WORK_CATEGORIES.map((c) => ({
+                          value: c.value,
+                          label: c.value,
+                        }))}
+                        placeholder="选择类别"
+                      />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl max-h-[300px]">
                       {WORK_CATEGORY_GROUPS.map((group) => (
@@ -243,7 +257,17 @@ export default function NewWorklogPage() {
                       onValueChange={(v) => setTaskId(!v || v === "__none__" ? "" : v)}
                     >
                       <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder="不关联具体任务" />
+                        <SelectValueLabeled
+                          value={taskId || "__none__"}
+                          items={[
+                            { value: "__none__", label: "不关联具体任务" },
+                            ...tasks.map((t) => ({
+                              value: t.id,
+                              label: `${t.name}（预估 ${Number(t.estimatedHours)}h）`,
+                            })),
+                          ]}
+                          placeholder="不关联具体任务"
+                        />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl">
                         <SelectItem value="__none__">不关联具体任务</SelectItem>
@@ -278,7 +302,14 @@ export default function NewWorklogPage() {
                     }}
                   >
                     <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="选择或新增类别" />
+                      <SelectValueLabeled
+                        value={nonProjectCategoryId}
+                        items={nonProjectCategories.map((c) => ({
+                          value: c.id,
+                          label: c.name,
+                        }))}
+                        placeholder="选择或新增类别"
+                      />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       {nonProjectCategories.map((c) => (

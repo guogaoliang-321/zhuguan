@@ -9,7 +9,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -102,7 +102,15 @@ export default function HeatmapPage() {
         </div>
         <Select value={weeks} onValueChange={(v) => v && setWeeks(v)}>
           <SelectTrigger className="w-[120px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue />
+            <SelectValueLabeled
+              value={weeks}
+              items={[
+                { value: "2", label: "2 周" },
+                { value: "4", label: "4 周" },
+                { value: "8", label: "8 周" },
+                { value: "12", label: "12 周" },
+              ]}
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="2">2 周</SelectItem>

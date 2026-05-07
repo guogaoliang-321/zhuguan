@@ -21,7 +21,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import {
   MessageSquareWarning,
@@ -121,7 +121,16 @@ export default function AdminAppealsPage() {
         </div>
         <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
           <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue />
+            <SelectValueLabeled
+              value={statusFilter}
+              items={[
+                { value: "pending", label: "待处理" },
+                { value: "all", label: "全部" },
+                { value: "accepted", label: "已受理" },
+                { value: "rejected", label: "已驳回" },
+                { value: "resolved", label: "已处理" },
+              ]}
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="pending">待处理</SelectItem>
@@ -249,7 +258,14 @@ export default function AdminAppealsPage() {
               onValueChange={(v) => v && setDecision(v as "accepted" | "rejected" | "resolved")}
             >
               <SelectTrigger className="rounded-xl">
-                <SelectValue />
+                <SelectValueLabeled
+                  value={decision}
+                  items={[
+                    { value: "accepted", label: "受理（同意申诉）" },
+                    { value: "rejected", label: "驳回（不同意）" },
+                    { value: "resolved", label: "已处理（其他）" },
+                  ]}
+                />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 <SelectItem value="accepted">受理（同意申诉）</SelectItem>

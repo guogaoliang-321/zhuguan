@@ -13,7 +13,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -151,7 +151,13 @@ export default function TasksPage() {
         </div>
         <Select value={scope} onValueChange={(v) => v && setScope(v as "mine" | "all")}>
           <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue />
+            <SelectValueLabeled
+              value={scope}
+              items={[
+                { value: "mine", label: "我的任务" },
+                { value: "all", label: "全部可见" },
+              ]}
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="mine">我的任务</SelectItem>
@@ -160,7 +166,17 @@ export default function TasksPage() {
         </Select>
         <Select value={status} onValueChange={(v) => v && setStatus(v)}>
           <SelectTrigger className="w-[120px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue placeholder="全部状态" />
+            <SelectValueLabeled
+              value={status}
+              items={[
+                { value: "all", label: "全部状态" },
+                { value: "pending", label: "未开始" },
+                { value: "in_progress", label: "进行中" },
+                { value: "done", label: "已完成" },
+                { value: "overdue", label: "已逾期" },
+              ]}
+              placeholder="全部状态"
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="all">全部状态</SelectItem>
@@ -173,7 +189,14 @@ export default function TasksPage() {
         {scope === "all" && assigneeOptions.length > 0 && (
           <Select value={assigneeFilter} onValueChange={(v) => v && setAssigneeFilter(v)}>
             <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
-              <SelectValue placeholder="全部责任人" />
+              <SelectValueLabeled
+                value={assigneeFilter}
+                items={[
+                  { value: "all", label: "全部责任人" },
+                  ...assigneeOptions.map((a) => ({ value: a.id, label: a.name })),
+                ]}
+                placeholder="全部责任人"
+              />
             </SelectTrigger>
             <SelectContent className="rounded-xl max-h-[300px]">
               <SelectItem value="all">全部责任人</SelectItem>
@@ -185,7 +208,14 @@ export default function TasksPage() {
         )}
         <Select value={sortKey} onValueChange={(v) => v && setSortKey(v as SortKey)}>
           <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue />
+            <SelectValueLabeled
+              value={sortKey}
+              items={[
+                { value: "due", label: "截止时间近" },
+                { value: "priority", label: "优先级" },
+                { value: "hours", label: "工时大" },
+              ]}
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="due">截止时间近</SelectItem>

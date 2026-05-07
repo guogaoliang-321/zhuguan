@@ -10,7 +10,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import { Shield, Inbox } from "lucide-react";
 
@@ -81,7 +81,16 @@ export default function AuditLogsPage() {
         </div>
         <Select value={actionFilter} onValueChange={(v) => v && setActionFilter(v)}>
           <SelectTrigger className="w-[160px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue />
+            <SelectValueLabeled
+              value={actionFilter}
+              items={[
+                { value: "all", label: "全部动作" },
+                ...Object.entries(ACTION_LABELS).map(([k, v]) => ({
+                  value: k,
+                  label: v.text,
+                })),
+              ]}
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="all">全部动作</SelectItem>

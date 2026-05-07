@@ -25,7 +25,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import {
   ArrowLeft,
@@ -635,7 +635,13 @@ export default function TaskDetailPage({
                   onValueChange={(v) => v && setEditForm((f) => ({ ...f, assigneeId: v }))}
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue />
+                    <SelectValueLabeled
+                      value={editForm.assigneeId}
+                      items={memberOptions.map((m) => ({
+                        value: m.id,
+                        label: `${m.name}${m.specialty ? `（${m.specialty}）` : ""}`,
+                      }))}
+                    />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {memberOptions.map((m) => (
@@ -669,7 +675,13 @@ export default function TaskDetailPage({
                   }
                 >
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue />
+                    <SelectValueLabeled
+                      value={editForm.priority}
+                      items={[
+                        { value: "normal", label: "常规" },
+                        { value: "urgent", label: "紧急" },
+                      ]}
+                    />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     <SelectItem value="normal">常规</SelectItem>

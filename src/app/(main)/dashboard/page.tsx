@@ -11,7 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -255,7 +255,16 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Select value={lightFilter} onValueChange={(v) => v && setLightFilter(v)}>
             <SelectTrigger className="w-[120px] rounded-xl bg-card border-0 shadow-soft h-9 text-sm">
-              <SelectValue placeholder="状态灯" />
+              <SelectValueLabeled
+                value={lightFilter}
+                items={[
+                  { value: "all", label: "全部状态" },
+                  { value: "green", label: "正常" },
+                  { value: "yellow", label: "即将到期" },
+                  { value: "red", label: "已逾期" },
+                ]}
+                placeholder="状态灯"
+              />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
               <SelectItem value="all">全部状态</SelectItem>
@@ -266,7 +275,14 @@ export default function DashboardPage() {
           </Select>
           <Select value={leadFilter} onValueChange={(v) => v && setLeadFilter(v)}>
             <SelectTrigger className="w-[120px] rounded-xl bg-card border-0 shadow-soft h-9 text-sm">
-              <SelectValue placeholder="负责人" />
+              <SelectValueLabeled
+                value={leadFilter}
+                items={[
+                  { value: "all", label: "全部人员" },
+                  ...leads.map((l) => ({ value: l.id, label: l.name })),
+                ]}
+                placeholder="负责人"
+              />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
               <SelectItem value="all">全部人员</SelectItem>

@@ -11,7 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Trash2, Clock, Calendar } from "lucide-react";
@@ -94,7 +94,15 @@ export default function WorklogPage() {
       <div className="mb-6">
         <Select value={projectFilter} onValueChange={(v) => v && setProjectFilter(v)}>
           <SelectTrigger className="w-[200px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue placeholder="按项目筛选" />
+            <SelectValueLabeled
+              value={projectFilter}
+              items={[
+                { value: "all", label: "全部项目" },
+                ...projects.map((p) => ({ value: p.id, label: p.name })),
+                { value: "__non_project__", label: "非项目任务" },
+              ]}
+              placeholder="按项目筛选"
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="all">全部项目</SelectItem>

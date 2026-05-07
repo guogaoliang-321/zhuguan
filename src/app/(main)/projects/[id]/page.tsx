@@ -71,6 +71,7 @@ interface UserOption {
   id: string;
   name: string;
   position: string | null;
+  specialty?: string | null;
 }
 
 interface Project {
@@ -613,28 +614,90 @@ function MembersTab({
   onRefresh: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [userId, setUserId] = useState("");
-  const [role, setRole] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [keyword, setKeyword] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const existingIds = new Set(members.map((m) => m.user.id));
   const availableUsers = users.filter((u) => !existingIds.has(u.id));
 
+  // 按专业分组
+  const grouped = availableUsers.reduce<Record<string, UserOption[]>>(
+    (acc, u) => {
+      const key = u.specialty ?? "未分专业";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(u);
+      return acc;
+    },
+    {}
+  );
+
+  // 关键字过滤
+  const kw = keyword.trim().toLowerCase();
+  const visibleGroups = Object.entries(grouped)
+    .map(([k, list]) => [
+      k,
+      list.filter(
+        (u) =>
+          !kw ||
+          u.name.toLowerCase().includes(kw) ||
+          (u.position?.toLowerCase().includes(kw) ?? false) ||
+          (u.specialty?.toLowerCase().includes(kw) ?? false)
+      ),
+    ] as const)
+    .filter(([, list]) => list.length > 0);
+
+  function toggle(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleGroup(ids: string[]) {
+    const allSelected = ids.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    const all = visibleGroups.flatMap(([, list]) => list.map((u) => u.id));
+    setSelectedIds(new Set(all));
+  }
+
+  function clearAll() {
+    setSelectedIds(new Set());
+  }
+
   async function handleAdd() {
+    if (selectedIds.size === 0) {
+      toast.error("请勾选至少一个成员");
+      return;
+    }
+    setAdding(true);
     const res = await fetch(`/api/projects/${projectId}/members`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role }),
+      body: JSON.stringify({ userIds: [...selectedIds] }),
     });
     if (res.ok) {
-      toast.success("成员已添加");
+      const data = await res.json();
+      toast.success(`已添加 ${data.added} 名成员`);
       setOpen(false);
-      setUserId("");
-      setRole("");
+      setSelectedIds(new Set());
+      setKeyword("");
       onRefresh();
     } else {
       const err = await res.json();
-      toast.error(err.error);
+      toast.error(err.error || "添加失败");
     }
+    setAdding(false);
   }
 
   async function removeMember(memberId: string) {
@@ -645,6 +708,8 @@ function MembersTab({
     toast.success("成员已移除");
     onRefresh();
   }
+
+  const visibleCount = visibleGroups.reduce((s, [, list]) => s + list.length, 0);
 
   return (
     <div className="space-y-3">
@@ -660,42 +725,109 @@ function MembersTab({
           添加成员
         </Button>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="rounded-2xl">
+          <DialogContent className="rounded-2xl max-w-xl">
             <DialogHeader>
               <DialogTitle>添加项目成员</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label>选择成员 *</Label>
-                <Select value={userId} onValueChange={(v) => v && setUserId(v)}>
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="选择人员" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {availableUsers.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name}
-                        {u.position ? ` · ${u.position}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-3 pt-2">
+              <Input
+                placeholder="搜索姓名 / 专业 / 职位"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                className="rounded-xl"
+              />
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllVisible}
+                  className="rounded-full h-7"
+                >
+                  全选当前显示（{visibleCount}）
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAll}
+                  className="rounded-full h-7"
+                  disabled={selectedIds.size === 0}
+                >
+                  清空选择
+                </Button>
+                <span className="ml-auto text-muted-foreground">
+                  已选 <span className="font-semibold text-foreground">{selectedIds.size}</span>
+                </span>
               </div>
-              <div className="space-y-2">
-                <Label>项目角色 *</Label>
-                <Input
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  placeholder="如：建筑专业负责人"
-                  className="rounded-xl"
-                />
+
+              <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1 -mr-1">
+                {visibleGroups.length === 0 ? (
+                  <div className="text-center text-sm text-muted-foreground py-8">
+                    {availableUsers.length === 0
+                      ? "项目所有成员都已添加"
+                      : "没有匹配的成员"}
+                  </div>
+                ) : (
+                  visibleGroups.map(([groupName, list]) => {
+                    const ids = list.map((u) => u.id);
+                    const allChecked = ids.every((id) => selectedIds.has(id));
+                    const someChecked = ids.some((id) => selectedIds.has(id));
+                    return (
+                      <div key={groupName}>
+                        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-1.5">
+                          <span>{groupName}（{list.length}）</span>
+                          <button
+                            type="button"
+                            className="text-primary hover:underline normal-case"
+                            onClick={() => toggleGroup(ids)}
+                          >
+                            {allChecked ? "取消全选" : "全选本专业"}
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                          {list.map((u) => {
+                            const checked = selectedIds.has(u.id);
+                            return (
+                              <label
+                                key={u.id}
+                                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer text-sm transition-colors ${
+                                  checked
+                                    ? "bg-primary/10 ring-1 ring-primary/30"
+                                    : "hover:bg-accent"
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => toggle(u.id)}
+                                />
+                                <span className="flex-1 min-w-0 truncate">
+                                  {u.name}
+                                  {u.position && (
+                                    <span className="text-xs text-muted-foreground ml-1">
+                                      · {u.position}
+                                    </span>
+                                  )}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {!allChecked && someChecked && (
+                          <span className="sr-only">部分选中</span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
+
               <Button
                 onClick={handleAdd}
-                disabled={!userId || !role}
+                disabled={adding}
                 className="w-full gradient-primary text-white rounded-xl"
               >
-                添加成员
+                {adding ? "添加中..." : `添加 ${selectedIds.size} 名成员`}
               </Button>
             </div>
           </DialogContent>

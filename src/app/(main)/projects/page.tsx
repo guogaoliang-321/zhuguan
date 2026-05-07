@@ -21,7 +21,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueLabeled,
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -126,7 +126,14 @@ export default function ProjectsPage() {
         </div>
         <Select value={phaseFilter} onValueChange={(v) => v && setPhaseFilter(v)}>
           <SelectTrigger className="w-[140px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue placeholder="设计阶段" />
+            <SelectValueLabeled
+              value={phaseFilter}
+              items={[
+                { value: "all", label: "全部阶段" },
+                ...PHASE_OPTIONS,
+              ]}
+              placeholder="设计阶段"
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="all">全部阶段</SelectItem>
@@ -139,7 +146,14 @@ export default function ProjectsPage() {
         </Select>
         <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
           <SelectTrigger className="w-[130px] rounded-xl bg-card border-0 shadow-soft h-10">
-            <SelectValue placeholder="项目状态" />
+            <SelectValueLabeled
+              value={statusFilter}
+              items={[
+                { value: "all", label: "全部状态" },
+                ...STATUS_OPTIONS,
+              ]}
+              placeholder="项目状态"
+            />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="all">全部状态</SelectItem>
