@@ -41,6 +41,7 @@ import {
 import { PHASE_LABELS, STATUS_LABELS, PHASE_OPTIONS } from "@/lib/constants";
 import { canEditProject } from "@/lib/permissions";
 import { TasksTab } from "@/components/projects/tasks-tab";
+import { MilestoneTimeline } from "@/components/projects/milestone-timeline";
 
 interface Milestone {
   id: string;
@@ -253,6 +254,8 @@ export default function ProjectDetailPage({
             projectId={id}
             milestones={project.milestones}
             phase={project.phase}
+            projectStartDate={project.startDate}
+            projectEndDate={project.endDate}
             users={users}
             canEdit={canEdit}
             onRefresh={fetchProject}
@@ -361,6 +364,8 @@ function MilestonesTab({
   projectId,
   milestones,
   phase,
+  projectStartDate,
+  projectEndDate,
   users,
   canEdit,
   onRefresh,
@@ -368,6 +373,8 @@ function MilestonesTab({
   projectId: string;
   milestones: Milestone[];
   phase: string;
+  projectStartDate: string | null;
+  projectEndDate: string | null;
   users: UserOption[];
   canEdit: boolean;
   onRefresh: () => void;
@@ -444,6 +451,11 @@ function MilestonesTab({
 
   return (
     <div className="space-y-3">
+      <MilestoneTimeline
+        milestones={milestones}
+        projectStartDate={projectStartDate}
+        projectEndDate={projectEndDate}
+      />
       {canEdit && (
         <>
         <Button
