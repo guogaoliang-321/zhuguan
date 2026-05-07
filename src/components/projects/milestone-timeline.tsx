@@ -25,9 +25,39 @@ export function MilestoneTimeline({
   projectStartDate,
   projectEndDate,
 }: Props) {
-  if (milestones.length === 0) return null;
-
   const now = startOfDay(new Date());
+
+  // 空状态：项目无节点时仍展示一条只含项目区间和今天的轴
+  if (milestones.length === 0) {
+    if (!projectStartDate && !projectEndDate) {
+      return null;
+    }
+    return (
+      <Card className="shadow-soft rounded-2xl">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-2 text-sm font-semibold mb-3">
+            <Flag className="w-4 h-4 text-primary" />
+            项目时间线
+          </div>
+          <div className="text-xs text-muted-foreground mb-3">
+            还没有添加设计节点。
+            {projectStartDate && projectEndDate ? (
+              <>
+                项目计划区间：
+                <span className="font-medium text-foreground">
+                  {format(new Date(projectStartDate), "yyyy/MM/dd")} ~{" "}
+                  {format(new Date(projectEndDate), "yyyy/MM/dd")}
+                </span>
+                。点击上面"添加节点"开始排时间线。
+              </>
+            ) : (
+              <>请先在"基本信息"里填项目起止日期，再添加节点。</>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // 时间轴范围：项目起止日期 ∪ 所有节点日期，再左右各加 7 天缓冲
   const milestoneDates = milestones.map((m) => new Date(m.dueDate).getTime());
