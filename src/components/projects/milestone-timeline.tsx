@@ -101,6 +101,43 @@ export function MilestoneTimeline({
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
+  // 周刻度（每周一）和日刻度（短任务跨度时）
+  // 范围 ≤ 35 天 → 每天一个刻度；35~120 天 → 每周一刻度；>120 天 → 仅月初
+  const tickMode: "day" | "week" | "month" =
+    totalDays <= 35 ? "day" : totalDays <= 120 ? "week" : "month";
+  const ticks: { left: number; major: boolean; label: string | null }[] = [];
+  if (tickMode === "day") {
+    for (let i = 0; i <= totalDays; i++) {
+      const d = addDays(rangeStart, i);
+      const isMonthStart = d.getDate() === 1;
+      const isWeekStart = d.getDay() === 1; // 周一
+      ticks.push({
+        left: dayToPercent(d),
+        major: isMonthStart || isWeekStart,
+        label: isMonthStart || isWeekStart ? format(d, "M/d") : null,
+      });
+    }
+  } else if (tickMode === "week") {
+    const wc = new Date(rangeStart);
+    // 对齐到周一
+    const dow = wc.getDay() || 7;
+    wc.setDate(wc.getDate() + (8 - dow) % 7);
+    while (wc <= rangeEnd) {
+      const isMonthStart = wc.getDate() <= 7;
+      ticks.push({
+        left: dayToPercent(wc),
+        major: isMonthStart,
+        label: format(wc, "M/d"),
+      });
+      wc.setDate(wc.getDate() + 7);
+    }
+  } else {
+    // month-only：用月初刻度兼任
+    months.forEach((m) =>
+      ticks.push({ left: m.left, major: true, label: null })
+    );
+  }
+
   const todayPercent = dayToPercent(now);
 
   // 项目区间条
@@ -159,7 +196,7 @@ export function MilestoneTimeline({
               {months.map((m, i) => (
                 <div
                   key={i}
-                  className="absolute -top-1 text-[10px] text-muted-foreground"
+                  className="absolute -top-1 text-[10px] text-muted-foreground font-medium"
                   style={{ left: `${m.left}%` }}
                 >
                   {m.label}
@@ -167,8 +204,40 @@ export function MilestoneTimeline({
               ))}
             </div>
 
+            {/* 周/日刻度尺 */}
+            <div className="relative h-5 mb-1">
+              {ticks.map((t, i) => (
+                <div
+                  key={i}
+                  className="absolute top-0"
+                  style={{ left: `${t.left}%` }}
+                >
+                  <div
+                    className={`w-px ${
+                      t.major ? "h-2.5 bg-muted-foreground/50" : "h-1.5 bg-muted-foreground/25"
+                    }`}
+                  />
+                  {t.label && t.major && (
+                    <span className="absolute top-2.5 -translate-x-1/2 text-[9px] text-muted-foreground whitespace-nowrap">
+                      {t.label}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
             {/* 主轴线 + 项目区间条 */}
             <div className="relative h-3 bg-muted/40 rounded-full">
+              {/* 轴上细刻度（仅 major） */}
+              {ticks.map((t, i) =>
+                t.major ? (
+                  <div
+                    key={`tick-${i}`}
+                    className="absolute top-0 bottom-0 w-px bg-muted-foreground/15"
+                    style={{ left: `${t.left}%` }}
+                  />
+                ) : null
+              )}
               {projStartPct !== null && projEndPct !== null && (
                 <div
                   className="absolute top-0 bottom-0 bg-primary/15 rounded-full ring-1 ring-primary/30"
