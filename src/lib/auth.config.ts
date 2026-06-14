@@ -29,6 +29,9 @@ export const authConfig: NextAuthConfig = {
   providers: [], // providers 在 auth.ts 中配置
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
+      // 临时密码重置接口，靠自身 secret 鉴权
+      if (nextUrl.pathname === "/api/admin/reset-passwords") return true;
+
       const isLoggedIn = !!auth?.user;
       const isLoginPage = nextUrl.pathname === "/login";
 
